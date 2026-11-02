@@ -25,9 +25,9 @@ export default function App() {
   useEffect(() => { document.title = `${dirty ? "• " : ""}${title || "Morne Bay Studio"}`; }, [title, dirty]);
 
   return (
-    <div className={`h-screen grid ${focus ? "grid-cols-[0_1fr_0]" : "grid-cols-[240px_1fr_320px] min-[1400px]:grid-cols-[260px_1fr_360px]"} bg-[var(--bg)] text-[var(--fg)]`}>
-      <div className="overflow-hidden"><Sidebar /></div>
-      <main className="relative min-w-0 flex flex-col">
+    <div className={`h-dvh overflow-hidden grid grid-rows-[100dvh] ${focus ? "grid-cols-[0_1fr_0]" : "grid-cols-[240px_1fr_320px] min-[1400px]:grid-cols-[260px_1fr_360px]"} bg-[var(--bg)] text-[var(--fg)]`}>
+      <div className="min-h-0 overflow-hidden"><Sidebar /></div>
+      <main className="relative min-w-0 min-h-0 flex flex-col overflow-hidden">
         <header className="h-10 flex items-center justify-between px-5 text-xs num text-[var(--muted)] border-b border-[var(--line)]">
           <div className="truncate">{title}{dirty && <span className="text-[var(--accent)]"> · unsaved</span>}</div>
           <div className="flex items-center gap-3">
@@ -36,10 +36,10 @@ export default function App() {
             <span className="opacity-60">{MOD}S save</span>
           </div>
         </header>
-        <div className="flex-1 min-h-0"><Editor /></div>
+        <div className="flex-1 min-h-0 overflow-hidden"><Editor /></div>
         {toast && <div role="status" className="toast absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-[var(--fg)] text-[var(--bg)] text-xs px-3 py-1.5 shadow">{toast}</div>}
       </main>
-      <div className="overflow-hidden"><RightPanel /></div>
+      <div className="min-h-0 overflow-hidden"><RightPanel /></div>
     </div>
   );
 }

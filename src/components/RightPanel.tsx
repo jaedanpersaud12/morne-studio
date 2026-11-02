@@ -20,13 +20,13 @@ const TABS: { id: Panel; label: string }[] = [
 export default function RightPanel() {
   const { panel, setPanel } = useStore();
   return (
-    <aside className="h-full flex flex-col bg-[var(--panel)] border-l border-[var(--line)]">
+    <aside className="h-full min-h-0 flex flex-col bg-[var(--panel)] border-l border-[var(--line)]">
       <div className="flex gap-0.5 px-2 pt-2 border-b border-[var(--line)]">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setPanel(t.id)} className={`tab px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}</button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-3 text-sm">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 text-sm">
         {panel === "cast" && <Cast />}
         {panel === "entity" && <EntityCard />}
         {panel === "backlinks" && <Backlinks />}

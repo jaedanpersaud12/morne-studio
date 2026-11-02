@@ -23,7 +23,7 @@
   --dur-enter: 200ms;
   --dur-exit: 150ms;
 }
-html, body, #root { height: 100%; }
+html, body, #root { height: 100%; overflow: hidden; }
 body { margin: 0; font-family: var(--font-ui); font-size: 0.875rem; background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-wrap: pretty; }
 button, [role="button"] { cursor: pointer; font: inherit; color: inherit; }
 button:disabled { cursor: default; }

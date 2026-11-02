@@ -129,7 +129,7 @@ export default function Editor() {
         EditorView.updateListener.of((u) => { if (u.docChanged) setDirty(true); }),
         EditorView.theme({
           "&": { height: "100%", fontSize: "17px" },
-          ".cm-scroller": { fontFamily: "var(--font-prose)", lineHeight: "1.75", padding: "2.5rem 0 40vh" },
+          ".cm-scroller": { overflow: "auto", overscrollBehavior: "contain", fontFamily: "var(--font-prose)", lineHeight: "1.75", padding: "2.5rem 0 40vh" },
           ".cm-content": { maxWidth: "68ch", margin: "0 auto", padding: "0 1.5rem", caretColor: "var(--accent)" },
           ".cm-activeLine": { background: "transparent" },
           ".cm-activeLineGutter": { background: "transparent" },

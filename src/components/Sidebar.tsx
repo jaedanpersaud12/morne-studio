@@ -19,7 +19,7 @@ export default function Sidebar() {
   const total = tree?.chapters.reduce((n, c) => n + c.words, 0) ?? 0;
 
   return (
-    <aside className="h-full flex flex-col bg-[var(--panel)] border-r border-[var(--line)]">
+    <aside className="h-full min-h-0 flex flex-col bg-[var(--panel)] border-r border-[var(--line)]">
       <div className="px-4 pt-4 pb-3">
         <div className="font-semibold tracking-tight">Morne Bay</div>
         <div className="text-xs text-[var(--muted)]">{tree ? `${tree.chapters.length} chapters · ${total.toLocaleString()} words` : "…"}</div>
@@ -28,7 +28,7 @@ export default function Sidebar() {
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search everything…"
           className="w-full rounded-md bg-[var(--bg)] border border-[var(--line)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--accent)]" />
       </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-4 text-sm">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 text-sm">
         {q.trim().length > 1 ? (
           <div className="space-y-1 px-1">
             <div className="text-xs text-[var(--muted)] px-1 py-1">{hits.length} hits</div>
