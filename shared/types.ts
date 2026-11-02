@@ -96,3 +96,12 @@ export type GraphData = {
   edges: { from: string; to: string; label: string; kind: "fault" | "bond"; note?: string; source: string }[];
 };
 export type NumberHit = { chapter: string; number: number; line: number; phrase: string; value: number; noun: string; matches: boolean; context: string };
+
+export type AiSource = { file: string; line?: number; label: string };
+export type AiEvent =
+  | { t: "status"; label: string }
+  | { t: "turn" }
+  | { t: "text"; d: string }
+  | { t: "step"; id: string; label: string; state: "running" | "done"; summary?: string; sources?: AiSource[] }
+  | { t: "done"; ms: number; usage: { input: number; output: number; cached: number }; sources: AiSource[] }
+  | { t: "error"; message: string };

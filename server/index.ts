@@ -13,7 +13,7 @@ import * as extras from "./extras";
 import * as exporter from "./export";
 import * as tts from "./tts";
 import { existsSync as fileExists } from "node:fs";
-import { run as runClaude, type ClaudeAction } from "./claude";
+import { run as runClaude } from "./claude";
 
 const app = new Hono();
 const api = new Hono();
@@ -93,15 +93,13 @@ api.post("/chapters/reorder", async (c) => {
 api.get("/settings", async (c) => c.json({ ...(await getSettings()), models: MODELS, ttsModels: TTS_MODELS }));
 api.put("/settings", async (c) => c.json(await putSettings(await c.req.json())));
 
-// ---- claude (streams plain text) ----
+// ---- claude (streams newline-delimited JSON events) ----
 api.post("/claude", async (c) => {
-  const body = await c.req.json<{ action: ClaudeAction; selection: string; context?: string; chapter?: string; question?: string }>();
+  const body = await c.req.json<import("./claude").RunOpts>();
   return streamText(c, async (stream) => {
-    try {
-      for await (const chunk of runClaude(body)) await stream.write(chunk);
-    } catch (e: any) {
-      await stream.write(`\n\n⚠︎ ${e?.message ?? e}`);
-    }
+    // events: status, turn, step (running/done), text deltas, done, error
+    try { for await (const ev of runClaude(body)) await stream.write(JSON.stringify(ev) + "\n"); }
+    catch (e: any) { await stream.write(JSON.stringify({ t: "error", message: String(e?.message ?? e) }) + "\n"); }
   });
 });
 

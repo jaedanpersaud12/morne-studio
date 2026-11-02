@@ -61,12 +61,18 @@ export const api = {
     log: (path: string) => j<{ hash: string; when: string; subject: string }[]>("/api/git/log" + q({ path })),
     show: (hash: string, path: string) => j<{ content: string }>("/api/git/show" + q({ hash, path })),
   },
-  /** Streams plain text; calls onText with each chunk. Returns the full text. */
-  claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string }, onText: (t: string) => void, signal?: AbortSignal) => {
+  /** Streams newline-delimited AiEvents from the agent. */
+  claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string; history?: { q: string; a: string }[] }, onEvent: (e: import("../shared/types").AiEvent) => void, signal?: AbortSignal) => {
     const r = await fetch("/api/claude", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
     if (!r.ok || !r.body) throw new Error(await r.text());
-    const reader = r.body.getReader(); const dec = new TextDecoder(); let all = "";
-    for (;;) { const { done, value } = await reader.read(); if (done) break; const t = dec.decode(value, { stream: true }); all += t; onText(t); }
-    return all;
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    const flush = (line: string) => { if (!line.trim()) return; try { onEvent(JSON.parse(line)); } catch {} };
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf("\n")) >= 0) { flush(buf.slice(0, i)); buf = buf.slice(i + 1); }
+    }
+    flush(buf);
   },
 };

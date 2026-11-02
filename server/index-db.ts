@@ -44,9 +44,40 @@ export async function search(q: string, limit = 60): Promise<SearchHit[]> {
   await ensure();
   const safeQ = q.trim().replace(/["']/g, " ").split(/\s+/).filter(Boolean).map((w) => `"${w}"`).join(" ");
   if (!safeQ) return [];
-  const rows = db.query(`SELECT file, kind, title, line, snippet(para, 4, '\u0001', '\u0002', '…', 22) AS text, bm25(para) AS score FROM para WHERE para MATCH ? ORDER BY score LIMIT ?`).all(safeQ, limit) as any[];
+  let rows = db.query(`SELECT file, kind, title, line, snippet(para, 4, '\u0001', '\u0002', '…', 22) AS text, bm25(para) AS score FROM para WHERE para MATCH ? ORDER BY score LIMIT ?`).all(safeQ, limit) as any[];
+  if (!rows.length && safeQ.includes(" ")) {
+    const loose = (await searchAny(q, { limit })).map((r) => ({ ...r, score: -r.score }));
+    rows = loose as any[];
+  }
   const clean = (s: string) => s.replace(/\|?\s*-{3,}\s*\|?/g, " ").replace(/\s*\|\s*/g, " · ").replace(/[#*_>`]+/g, "").replace(/\s{2,}/g, " ").trim();
   return rows.map((r) => ({ ...r, text: clean(r.text), score: -r.score }));
+}
+
+const STOP = new Set("a an and are as at be been but by can could did do does for from had has have he her hers him his how i if in into is it its just me my no not of on or our she so than that the their them then there these they this those to up was we were what when where which who whom why will with would you your anyone anybody someone something mentioned mention since ever any every does about after before ch chapter chapters book".split(" "));
+
+/** Keyword search for the AI: drops stopwords, ORs the rest with prefix matching, expands character names to all their aliases.
+ *  Returns whole paragraphs (trimmed), ranked by bm25, so the model reads real context. */
+export async function searchAny(q: string, opts: { scope?: "chapters" | "bible" | "all"; limit?: number } = {}): Promise<(SearchHit & { full: string })[]> {
+  await ensure();
+  const ents = await loadEntities();
+  const words = (q.toLowerCase().match(/[a-z0-9À-ɏ]+(?:'[a-z]+)?/g) ?? []).map((w) => w.replace(/'s$/, "")).filter((w) => w.length > 1 && !STOP.has(w));
+  const nameTerms = new Set<string>(), topicTerms = new Set<string>();
+  for (const w of words) {
+    const e = ents.find((x) => x.aliases.some((a) => a.toLowerCase() === w) || x.short.toLowerCase() === w);
+    if (e) e.aliases.forEach((a) => a.split(/\s+/).forEach((p) => { const k = p.toLowerCase().replace(/[^a-z0-9]/g, ""); if (k.length > 2) nameTerms.add(k); }));
+    else topicTerms.add(w);
+  }
+  const or = (s: Set<string>) => [...s].slice(0, 16).map((w) => `"${w.replace(/"/g, "")}"*`).join(" OR ");
+  if (!nameTerms.size && !topicTerms.size) return [];
+  const scope = opts.scope ?? "all";
+  const where = scope === "all" ? "" : ` AND kind = '${scope === "chapters" ? "chapter" : "bible"}'`;
+  const run = (match: string) => db.query(`SELECT file, kind, title, line, text, snippet(para, 4, '\u0001', '\u0002', '…', 22) AS snip, bm25(para) AS score FROM para WHERE para MATCH ?${where} ORDER BY score LIMIT ?`).all(match, (opts.limit ?? 25) * 2) as any[];
+  // a name and a topic: both must appear; otherwise either
+  let rows: any[] = nameTerms.size && topicTerms.size ? run(`(${or(nameTerms)}) AND (${or(topicTerms)})`) : [];
+  if (rows.length < 3) rows = rows.concat(run([or(nameTerms), or(topicTerms)].filter(Boolean).join(" OR ")).filter((r) => !rows.some((x) => x.file === r.file && x.line === r.line)));
+  // bare headings carry no information
+  rows = rows.filter((r) => !/^#{1,6}\s/.test(String(r.text)) || String(r.text).length > 80).slice(0, opts.limit ?? 25);
+  return rows.map((r) => ({ file: r.file, kind: r.kind, title: r.title, line: r.line, text: r.snip, full: String(r.text).slice(0, 900), score: -r.score }));
 }
 
 /** Every paragraph in which an entity (any alias, word-bounded) appears. Chapters first, in order, then bible. */
