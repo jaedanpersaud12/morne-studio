@@ -111,3 +111,12 @@ export type AgentActivity = {
   id: string; tool: string; state: "running" | "done" | "error"; label: string; at: number; ms?: number;
   path?: string; from?: number; to?: number; summary?: string; diff?: { old: string; new: string };
 };
+export type WikiIndex = { categories: { id: string; label: string }[]; pages: { path: string; title: string; words: number; category: string; edited: number; entity?: { id: string; short: string; age: string | null; element: string | null; group: string; oneLine: string | null } }[] };
+export type WikiPage = {
+  path: string; title: string; content: string; words: number; category: string;
+  linksHere: { file: string; title: string; kind: "bible" | "chapter"; line: number; text: string }[];
+  seeAlso: { path: string; title: string }[];
+  entity?: { id: string; name: string; short: string; age: string | null; element: string | null; tier: string | null; group: string; oneLine: string | null; aliases: string[] };
+  appears?: { counts: { number: number; title: string; path: string; count: number; pov: boolean }[]; first: { file: string; line: number; text: string } | null; samples: { file: string; title: string; line: number; text: string }[] };
+  edited: { when: string; subject: string } | null;
+};

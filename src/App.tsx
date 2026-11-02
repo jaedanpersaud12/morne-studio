@@ -9,12 +9,13 @@ import TimelineView from "./views/TimelineView";
 import KnowledgeView from "./views/KnowledgeView";
 import LedgerView from "./views/LedgerView";
 import MapView from "./views/MapView";
+import WikiView from "./views/WikiView";
 import { ProgressBadge, ReadAloud } from "./components/TopBarTools";
 import { useStore, useMode, type View, type MdMode } from "./store";
 import ReadView from "./components/ReadView";
 import { getEditorView } from "./editorBridge";
 import { Toaster } from "sonner";
-import { PenLine, Kanban, CalendarRange, UsersRound, Scale, Network, Search, Focus, Minimize2, Type, Code, BookOpen } from "lucide-react";
+import { BookMarked, PenLine, Kanban, CalendarRange, UsersRound, Scale, Network, Search, Focus, Minimize2, Type, Code, BookOpen } from "lucide-react";
 import { IconButton, Segmented, TipProvider, Kbd } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
 import AgentIsland from "./components/AgentIsland";
@@ -24,6 +25,7 @@ const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "write", label: "Write", icon: <PenLine size={14} /> }, { id: "board", label: "Board", icon: <Kanban size={14} /> },
   { id: "timeline", label: "Timeline", icon: <CalendarRange size={14} /> }, { id: "knowledge", label: "Who knows", icon: <UsersRound size={14} /> },
   { id: "ledger", label: "Ledger", icon: <Scale size={14} /> }, { id: "map", label: "Map", icon: <Network size={14} /> },
+  { id: "wiki", label: "Wiki", icon: <BookMarked size={14} /> },
 ];
 import { api } from "./api";
 
@@ -55,6 +57,7 @@ export default function App() {
       else if (e.key === "4") { e.preventDefault(); setView("knowledge"); }
       else if (e.key === "5") { e.preventDefault(); setView("ledger"); }
       else if (e.key === "6") { e.preventDefault(); setView("map"); }
+      else if (e.key === "7") { e.preventDefault(); setView("wiki"); }
     };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [toggleFocus, setPanel, setView]);
@@ -110,6 +113,7 @@ export default function App() {
             {view === "knowledge" && <KnowledgeView />}
             {view === "ledger" && <LedgerView />}
             {view === "map" && <MapView />}
+            {view === "wiki" && <WikiView />}
           </div>
         )}
         <AgentIsland />

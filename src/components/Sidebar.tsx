@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BookMarked, ChevronRight, Search, Settings, Sparkles } from "lucide-react";
 import { api } from "../api";
-import { useStore, goTo } from "../store";
+import { useStore, goTo, openWiki } from "../store";
 import { povColor } from "../povColors";
 import { IconButton, Kbd } from "./ui";
 
@@ -11,6 +11,7 @@ const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator
 export default function Sidebar() {
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree, refetchInterval: 10000 });
   const { openPath, view, setView, setSettingsOpen } = useStore();
+  const wikiPath = useStore((s) => s.wikiPath);
   const { data: git } = useQuery({ queryKey: ["git"], queryFn: api.git.status, refetchInterval: 8000 });
   const [showBible, setShowBible] = useState(() => { try { return localStorage.getItem("mbs-bible-open") === "1"; } catch { return false; } });
   const toggleBible = () => setShowBible((s) => { try { localStorage.setItem("mbs-bible-open", s ? "0" : "1"); } catch {} return !s; });
@@ -61,14 +62,14 @@ export default function Sidebar() {
         </div>
 
         <button className="side-label side-label-btn mt-5" onClick={toggleBible} aria-expanded={showBible}>
-          <ChevronRight size={12} className="side-caret" data-open={showBible || undefined} aria-hidden />Bible
+          <ChevronRight size={12} className="side-caret" data-open={showBible || undefined} aria-hidden />Bible · wiki
           <span className="ml-auto num normal-case tracking-normal">{tree?.bible.length ?? ""}</span>
         </button>
         {showBible && (
           <div className="space-y-px">
-            {pages.map((b) => <BibleRow key={b.path} path={b.path} title={b.title} active={view === "write" && openPath === b.path} />)}
+            {pages.map((b) => <BibleRow key={b.path} path={b.path} title={b.title} active={(view === "write" && openPath === b.path) || (view === "wiki" && wikiPath === b.path)} />)}
             {cast.length > 0 && <div className="side-sublabel">Cast</div>}
-            {cast.map((b) => <BibleRow key={b.path} path={b.path} title={b.title} active={view === "write" && openPath === b.path} />)}
+            {cast.map((b) => <BibleRow key={b.path} path={b.path} title={b.title} active={(view === "write" && openPath === b.path) || (view === "wiki" && wikiPath === b.path)} />)}
             {tree?.other.map((b) => <BibleRow key={b.path} path={b.path} title={b.path} active={view === "write" && openPath === b.path} />)}
           </div>
         )}
@@ -87,7 +88,7 @@ export default function Sidebar() {
 
 function BibleRow({ path, title, active }: { path: string; title: string; active: boolean }) {
   return (
-    <button onClick={() => goTo(path)} className="side-row" data-active={active || undefined} title={title}>
+    <button onClick={() => (path.startsWith("bible/") ? openWiki(path) : goTo(path))} className="side-row" data-active={active || undefined} title={title}>
       <BookMarked size={13} className="text-[var(--muted)] shrink-0" aria-hidden />
       <span className="flex-1 truncate text-left">{title.replace(/^\d+\.\s*/, "")}</span>
     </button>

@@ -12,6 +12,7 @@ import { getSettings, putSettings, MODELS, TTS_MODELS } from "./settings";
 import * as extras from "./extras";
 import * as exporter from "./export";
 import * as tts from "./tts";
+import * as wiki from "./wiki";
 import { existsSync as fileExists } from "node:fs";
 import { run as runClaude } from "./claude";
 import { watch } from "node:fs";
@@ -152,6 +153,22 @@ api.get("/events", (c) => streamText(c, async (stream) => {
   listeners.delete(send);
 }));
 api.post("/ui/goto", async (c) => { const { path: p, line } = await c.req.json<{ path: string; line?: number }>(); broadcast({ t: "goto", path: p, line }); return c.json({ ok: true, windows: listeners.size }); });
+
+// ---- wiki ----
+api.get("/wiki/index", async (c) => c.json(await wiki.index()));
+api.get("/wiki/page", async (c) => c.json(await wiki.page(c.req.query("path") ?? "")));
+api.post("/wiki/create", async (c) => {
+  const { title, category } = await c.req.json<{ title: string; category: string }>();
+  if (!title?.trim()) return c.text("title required", 400);
+  const r = await wiki.createPage(title.trim(), category);
+  recentWrites.set(r.path, Date.now());
+  await writeText(r.path, r.content);
+  await rebuild();
+  await loadEntities(true).catch(() => {});
+  broadcast({ t: "changed", path: r.path, source: sourceOf(c) });
+  await git.autoCommitPaths([r.path], `studio: new wiki page ${title.trim()}`).catch(() => null);
+  return c.json({ path: r.path });
+});
 
 // ---- agent activity: what Claude is doing over MCP, live ----
 const activity: AgentActivity[] = [];

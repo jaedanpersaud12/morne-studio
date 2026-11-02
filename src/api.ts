@@ -61,6 +61,9 @@ export const api = {
     log: (path: string) => j<{ hash: string; when: string; subject: string }[]>("/api/git/log" + q({ path })),
     show: (hash: string, path: string) => j<{ content: string }>("/api/git/show" + q({ hash, path })),
   },
+  wikiIndex: () => j<import("../shared/types").WikiIndex>("/api/wiki/index"),
+  wikiPage: (path: string) => j<import("../shared/types").WikiPage>("/api/wiki/page" + q({ path })),
+  wikiCreate: (title: string, category: string) => j<{ path: string }>("/api/wiki/create", post({ title, category })),
   /** Streams newline-delimited AiEvents from the agent. */
   claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string; instruction?: string; focus?: string[]; history?: { q: string; a: string }[] }, onEvent: (e: import("../shared/types").AiEvent) => void, signal?: AbortSignal) => {
     const r = await fetch("/api/claude", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });

@@ -4,7 +4,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { BookMarked, BookOpen, CalendarRange, Focus, Hammer, Kanban, Network, PenLine, Scale, Search, Settings, Sparkles, UsersRound, FileText, CornerDownLeft } from "lucide-react";
 import { api } from "../api";
-import { goTo, useStore, type View } from "../store";
+import { goTo, openWiki, useStore, type View } from "../store";
 import { renderMarks } from "./Sidebar";
 
 const VIEW_ITEMS: { id: View; label: string; icon: React.ReactNode }[] = [
@@ -14,6 +14,7 @@ const VIEW_ITEMS: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "knowledge", label: "Who knows what", icon: <UsersRound size={15} /> },
   { id: "ledger", label: "Ledger", icon: <Scale size={15} /> },
   { id: "map", label: "Map", icon: <Network size={15} /> },
+  { id: "wiki", label: "Wiki", icon: <BookMarked size={15} /> },
 ];
 
 /** Ctrl+P: jump to any chapter, bible page, character or view, run an action, or search the full text. */
@@ -52,14 +53,14 @@ export default function CommandPalette() {
               </Command.Group>
               <Command.Group heading="Characters">
                 {entities.filter((e) => e.file).map((e) => (
-                  <Command.Item key={e.id} value={`character ${e.name} ${e.aliases.join(" ")}`} onSelect={() => run(() => { st().setView("write"); st().setPanel("cast"); st().setEntity(e.id); })}>
+                  <Command.Item key={e.id} value={`character ${e.name} ${e.aliases.join(" ")}`} onSelect={() => run(() => { if (e.file) openWiki(e.file); else { st().setView("write"); st().setPanel("cast"); st().setEntity(e.id); } })}>
                     <UsersRound size={15} aria-hidden /><span className="flex-1 truncate">{e.name}</span><span className="ui-palette-meta">{e.element ?? e.group}</span>
                   </Command.Item>
                 ))}
               </Command.Group>
               <Command.Group heading="Bible">
                 {tree?.bible.map((b) => (
-                  <Command.Item key={b.path} value={`bible ${b.title} ${b.path}`} onSelect={() => run(() => goTo(b.path))}>
+                  <Command.Item key={b.path} value={`bible wiki ${b.title} ${b.path}`} onSelect={() => run(() => openWiki(b.path))}>
                     <BookMarked size={15} aria-hidden /><span className="flex-1 truncate">{b.title.replace(/^\d+\.\s*/, "")}</span><span className="ui-palette-meta">{b.path.includes("/cast/") ? "cast" : "bible"}</span>
                   </Command.Item>
                 ))}

@@ -38,7 +38,7 @@ export function useLiveEvents() {
         let e: StudioEvent; try { e = JSON.parse(m.data); } catch { return; }
         if (e.t === "changed") {
           qc.invalidateQueries({ queryKey: ["file", e.path] });
-          ["tree", "search", "git", "numbers", "flags", "presence", "backlinks"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+          ["tree", "search", "git", "numbers", "flags", "presence", "backlinks", "wikiIndex", "wikiPage"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
           qc.invalidateQueries({ queryKey: ["fingerprint", e.path] });
           if (e.source === "mcp" && useStore.getState().openPath === e.path && useStore.getState().dirty)
             toast.warning("You have unsaved changes here, so Claude's edit wasn't loaded. Save keeps yours; reopen the file to see Claude's.");

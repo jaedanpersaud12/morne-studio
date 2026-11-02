@@ -6,7 +6,7 @@ import type { AgentActivity } from "../shared/types";
 export type AgentMark = { path: string; from: number; to: number; kind: "read" | "edit" | "point"; key: string; live: boolean };
 
 export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude" | "notes" | "history";
-export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map";
+export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map" | "wiki";
 export type MdMode = "live" | "source" | "read";
 export type Selection = { from: number; to: number; text: string; context: string };
 
@@ -28,6 +28,7 @@ type S = {
   modes: { chapter: MdMode; bible: MdMode }; setMode: (m: MdMode) => void;
   inline: Inline | null;
   paletteOpen: boolean;
+  wikiPath: string | null;
   syncError: string | null;
   agent: AgentActivity[]; agentFollow: boolean; agentMark: AgentMark | null; agentUndone: string[];
 };
@@ -51,6 +52,7 @@ export const useStore = create<S>((set, get) => ({
   selection: null, setSelection: (selection) => set({ selection }),
   inline: null,
   paletteOpen: false,
+  wikiPath: (() => { try { return localStorage.getItem("mbs-wiki") || null; } catch { return null; } })(),
   syncError: null,
   agent: [], agentFollow: (() => { try { return localStorage.getItem("mbs-follow") !== "0"; } catch { return true; } })(), agentMark: null, agentUndone: [],
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
@@ -81,4 +83,11 @@ export function goTo(file: string, line?: number) {
   const same = s.openPath === file;
   if (!same) s.setOpenPath(file); else s.setView("write");
   if (line) setTimeout(() => useStore.getState().setJumpLine(line), same ? 0 : 150);
+}
+
+/** Open a bible page in the wiki. */
+export function openWiki(p: string | null) {
+  useStore.setState({ wikiPath: p });
+  try { localStorage.setItem("mbs-wiki", p ?? ""); } catch {}
+  useStore.getState().setView("wiki");
 }
