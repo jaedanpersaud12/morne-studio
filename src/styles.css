@@ -4,28 +4,51 @@
   --bg: #15130f;
   --panel: #1b1914;
   --fg: #ece6da;
-  --fg-dim: #b9b1a2;
-  --muted: #7d7568;
+  --fg-dim: #bdb5a6;
+  --muted: #938b7c;
   --line: #2a2620;
   --hover: #221f19;
-  --active: #2b271f;
+  --active: #2d2820;
   --accent: #e0a458;
   --sel: #3a3225;
   --add: #8fc48a;
   --del: #d98a7a;
   --font-prose: "Literata", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* motion tokens (Emil Kowalski's curves) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-press: 150ms;
+  --dur-tip: 125ms;
+  --dur-enter: 200ms;
+  --dur-exit: 150ms;
 }
 html, body, #root { height: 100%; }
-body { margin: 0; font-family: var(--font-ui); background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; }
+body { margin: 0; font-family: var(--font-ui); font-size: 0.875rem; background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-wrap: pretty; }
+button, [role="button"] { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { cursor: default; }
+input { font: inherit; color: inherit; }
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+input:focus-visible { outline-offset: 0; }
+.tabular, .num { font-variant-numeric: tabular-nums; }
+[class*="overflow-y-auto"] { overscroll-behavior: contain; }
 
-.btn { @apply rounded-md border border-[var(--line)] bg-[var(--bg)] px-2.5 py-1 text-xs hover:border-[var(--accent)] disabled:opacity-40; }
-.chip { @apply rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] hover:border-[var(--accent)]; }
+/* controls */
+.btn, .chip, .tab, .row, .ent-chip { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
+.btn { @apply rounded-md border border-[var(--line)] bg-[var(--bg)] px-2.5 py-1 text-xs disabled:opacity-40; }
+.chip { @apply rounded-full border border-[var(--line)] px-2 py-0.5 text-xs; }
 .chip-on { @apply border-[var(--accent)] text-[var(--accent)]; }
-.ent-chip { @apply rounded-full px-2 py-0.5 text-[12px] border; }
+.ent-chip { @apply rounded-full px-2 py-0.5 text-xs border; }
+@media (hover: hover) {
+  .btn:hover, .chip:hover { border-color: var(--accent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .chip, .ent-chip, .tab { transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, scale var(--dur-press) var(--ease-out); }
+  .btn:not(:disabled):active, .chip:not(:disabled):active, .ent-chip:not(:disabled):active, .tab:not(:disabled):active { scale: 0.96; }
+}
 
 /* entity marks in the editor */
-.ent { border-bottom: 1px dotted; padding-bottom: 1px; cursor: default; }
+.ent { border-bottom: 1px dotted; padding-bottom: 1px; cursor: default; text-decoration: none; }
 .ent-main { border-color: color-mix(in oklab, var(--accent) 70%, transparent); }
 .ent-antagonist { border-color: color-mix(in oklab, var(--del) 80%, transparent); }
 .ent-supporting { border-color: color-mix(in oklab, var(--fg) 35%, transparent); }
@@ -33,11 +56,24 @@ body { margin: 0; font-family: var(--font-ui); background: var(--bg); color: var
 .ent-chip.ent-antagonist { border-color: color-mix(in oklab, var(--del) 70%, transparent); color: var(--del); }
 .ent-chip.ent-supporting { border-color: var(--line); color: var(--fg-dim); }
 
-.ent-tip { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-width: 300px; font-family: var(--font-ui); font-size: 12px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
-.ent-tip .t-name { font-weight: 600; font-size: 13px; }
-.ent-tip .t-el { color: var(--accent); font-size: 11px; margin-bottom: 4px; }
+/* tooltip: 125ms, ease-out, scale from 0.97, origin at the word */
+.cm-tooltip-hover { background: transparent !important; border: none !important; }
+.ent-tip { background: var(--panel); color: var(--fg); border: 1px solid transparent; border-radius: 8px; padding: 8px 10px; max-width: 300px; font-family: var(--font-ui); font-size: 0.75rem; line-height: 1.45; box-shadow: 0 0 0 1px var(--line), 0 8px 24px rgba(0,0,0,.35); transform-origin: bottom left; }
+@media (prefers-reduced-motion: no-preference) {
+  .ent-tip { animation: tip-in var(--dur-tip) var(--ease-out) both; }
+  @keyframes tip-in { from { opacity: 0; transform: scale(0.97); } }
+}
+@media (prefers-reduced-motion: reduce) { .ent-tip { animation: tip-fade var(--dur-tip) ease both; } @keyframes tip-fade { from { opacity: 0; } } }
+.ent-tip .t-name { font-weight: 600; font-size: 0.8125rem; }
+.ent-tip .t-el { color: var(--accent); font-size: 0.75rem; margin-bottom: 4px; }
 .ent-tip .t-line { color: var(--fg-dim); }
-.ent-tip .t-hint { color: var(--muted); font-size: 10px; margin-top: 6px; }
+.ent-tip .t-hint { color: var(--muted); font-size: 0.75rem; margin-top: 6px; }
+
+/* toast: enter 200ms ease-out, exit 150ms */
+.toast { opacity: 1; translate: 0 0; transition: opacity var(--dur-enter) var(--ease-out), translate var(--dur-enter) var(--ease-out); }
+@starting-style { .toast { opacity: 0; translate: 0 6px; } }
+.toast[data-leaving] { opacity: 0; translate: 0 4px; transition-duration: var(--dur-exit); }
+@media (prefers-reduced-motion: reduce) { .toast { translate: 0 0 !important; transition: opacity var(--dur-enter) ease; } }
 
 /* markdown */
 .md-h1 { font-size: 1.45em; font-weight: 600; letter-spacing: -0.01em; }
@@ -47,15 +83,18 @@ body { margin: 0; font-family: var(--font-ui); background: var(--bg); color: var
 .md-hr { color: var(--muted); letter-spacing: .3em; }
 .md-link { color: var(--accent); }
 
-/* pov chip */
-.pov { @apply rounded px-1 text-[10px] uppercase tracking-wide; background: var(--hover); }
+/* labels */
+.label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.pov { @apply rounded px-1 text-xs; letter-spacing: 0.05em; text-transform: uppercase; background: var(--hover); font-size: 0.6875rem; }
 
-/* diff */
+/* diff: never colour alone */
 .diff ins { text-decoration: none; background: color-mix(in oklab, var(--add) 22%, transparent); color: var(--fg); border-radius: 2px; }
-.diff del { background: color-mix(in oklab, var(--del) 22%, transparent); color: var(--fg-dim); border-radius: 2px; }
+.diff del { background: color-mix(in oklab, var(--del) 22%, transparent); color: var(--fg-dim); border-radius: 2px; text-decoration: line-through; text-decoration-thickness: from-font; }
 
-/* focus mode: dim everything but the active paragraph's neighbourhood */
-.focus .cm-line { opacity: .45; transition: opacity .15s; }
+/* focus mode: dim neighbours; opacity only, so it is reduced-motion safe */
+.focus .cm-line { opacity: .45; }
+@media (prefers-reduced-motion: no-preference) { .focus .cm-line { transition: opacity 150ms ease; } }
 .focus .cm-activeLine, .focus .cm-activeLine + .cm-line, .focus .cm-line:has(+ .cm-activeLine) { opacity: 1; }
 
 ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+::selection { background: var(--sel); }

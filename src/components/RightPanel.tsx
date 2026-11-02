@@ -15,7 +15,7 @@ export default function RightPanel() {
     <aside className="h-full flex flex-col bg-[var(--panel)] border-l border-[var(--line)]">
       <div className="flex gap-0.5 px-2 pt-2 border-b border-[var(--line)]">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setPanel(t.id)} className={`px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}</button>
+          <button key={t.id} onClick={() => setPanel(t.id)} className={`tab px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}</button>
         ))}
       </div>
       <div className="flex-1 overflow-y-auto p-3 text-sm">
@@ -39,8 +39,8 @@ function Cast() {
     <div className="space-y-4">
       {pres && (
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-1">Presence by chapter</div>
-          <table className="w-full text-[11px] tabular-nums">
+          <div className="label mb-1">Presence by chapter</div>
+          <table className="w-full text-xs num">
             <thead><tr><th className="text-left font-normal text-[var(--muted)]"></th>{pres.chapters.map((c) => <th key={c} className="font-normal text-[var(--muted)] w-6 text-center">{c}</th>)}</tr></thead>
             <tbody>
               {pres.rows.slice(0, 12).map((r) => {
@@ -48,7 +48,7 @@ function Cast() {
                 return (
                   <tr key={r.id} className="cursor-pointer hover:bg-[var(--hover)]" onClick={() => setEntity(r.id)}>
                     <td className="py-0.5 pr-1 truncate max-w-[72px]">{r.short}</td>
-                    {r.counts.map((n, i) => <td key={i} className="text-center"><span className="inline-block w-5 h-4 rounded-sm" style={{ background: `color-mix(in oklab, var(--accent) ${Math.round((n / max) * 85)}%, transparent)` }} title={String(n)} /></td>)}
+                    {r.counts.map((n, i) => <td key={i} className="text-center"><span className="inline-block w-5 h-4 rounded-sm" style={{ background: `color-mix(in oklab, var(--accent) ${Math.round((n / max) * 85)}%, transparent)` }} title={`${r.short}: ${n} in ch ${pres.chapters[i]}`} aria-label={`${n}`} /></td>)}
                   </tr>
                 );
               })}
@@ -58,7 +58,7 @@ function Cast() {
       )}
       {groups.map((g) => (
         <div key={g}>
-          <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-1">{g}</div>
+          <div className="label mb-1">{g}</div>
           <div className="flex flex-wrap gap-1">
             {entities.filter((e) => e.group === g).map((e) => (
               <button key={e.id} onClick={() => setEntity(e.id)} className={`ent-chip ent-${g}`}>{e.short}</button>
@@ -88,7 +88,7 @@ function EntityCard() {
         {e.file && <button className="btn" onClick={() => setOpenPath(e.file!)}>Open file</button>}
         <button className="btn" onClick={() => setPanel("backlinks")}>Backlinks</button>
       </div>
-      {file && <pre className="whitespace-pre-wrap text-[12px] leading-relaxed text-[var(--fg-dim)] font-[inherit] border-t border-[var(--line)] pt-3">{file.content.slice(0, 2500)}{file.content.length > 2500 ? "\n…" : ""}</pre>}
+      {file && <pre className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--fg-dim)] font-[inherit] border-t border-[var(--line)] pt-3">{file.content.slice(0, 2500)}{file.content.length > 2500 ? "\n…" : ""}</pre>}
     </div>
   );
 }
@@ -105,8 +105,8 @@ function Backlinks() {
     <div className="space-y-1">
       {items.map((l, i) => (
         <button key={i} onClick={() => go(l.file, l.line)} className="block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
-          <div className="text-[11px] text-[var(--muted)]">{l.title} · L{l.line}</div>
-          <div className="text-[12.5px] leading-snug line-clamp-3">{l.text}</div>
+          <div className="text-xs text-[var(--muted)]">{l.title} · L{l.line}</div>
+          <div className="text-[13px] leading-snug line-clamp-3">{l.text}</div>
         </button>
       ))}
     </div>
@@ -115,7 +115,7 @@ function Backlinks() {
     <div className="space-y-4">
       <div className="font-medium">{e.name} <span className="text-[var(--muted)] font-normal">· {chapters.length} in chapters, {bible.length} in bible</span></div>
       <List items={chapters} />
-      {bible.length > 0 && <><div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">Bible</div><List items={bible} /></>}
+      {bible.length > 0 && <><div className="label">Bible</div><List items={bible} /></>}
     </div>
   );
 }
@@ -172,17 +172,17 @@ function Stats() {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2 text-center">
         {[["words", f.words.toLocaleString()], ["sentences", f.sentences], ["avg len", f.avgSentence]].map(([k, v]) => (
-          <div key={k} className="rounded-md bg-[var(--bg)] py-2"><div className="text-base font-semibold tabular-nums">{v}</div><div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{k}</div></div>
+          <div key={k} className="rounded-md bg-[var(--bg)] py-2"><div className="text-base font-semibold num">{v}</div><div className="label">{k}</div></div>
         ))}
       </div>
-      <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">Tic counts (bible/14)</div>
-      <table className="w-full text-[12.5px]">
+      <div className="label">Tic counts (bible/14)</div>
+      <table className="w-full text-[13px]">
         <tbody>{rows.map(([k, n]) => (
-          <tr key={k} className="border-t border-[var(--line)]"><td className="py-1 pr-2">{k}</td><td className="py-1 text-right tabular-nums font-medium">{n}</td><td className="py-1 pl-2 text-right tabular-nums text-[var(--muted)] w-14">{f.per1k[k]}/1k</td></tr>
+          <tr key={k} className="border-t border-[var(--line)]"><td className="py-1 pr-2">{k}</td><td className="py-1 text-right num font-medium">{n}</td><td className="py-1 pl-2 text-right num text-[var(--muted)] w-14">{f.per1k[k]}/1k</td></tr>
         ))}</tbody>
       </table>
-      <div className="text-[11px] uppercase tracking-wider text-[var(--muted)]">Section enders</div>
-      <ol className="space-y-1 text-[12px] text-[var(--fg-dim)] list-decimal pl-4">{f.sectionEnders.map((s, i) => <li key={i}>{s}</li>)}</ol>
+      <div className="label">Section enders</div>
+      <ol className="space-y-1 text-xs text-[var(--fg-dim)] list-decimal pl-4">{f.sectionEnders.map((s, i) => <li key={i}>{s}</li>)}</ol>
     </div>
   );
 }
@@ -205,8 +205,8 @@ function Git() {
         {s.last && <div className="text-[var(--muted)]">{s.last.hash} · {s.last.subject} · {s.last.when}</div>}</div>
       <div className="flex gap-2 flex-wrap"><button className="btn" onClick={() => run(api.git.pull, "Pull")}>Pull</button><button className="btn" onClick={() => run(api.git.push, "Push")}>Push</button><button className="btn" onClick={build}>Build manuscript</button></div>
       <div>
-        <div className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-1">Changes ({s.dirty.length})</div>
-        {s.dirty.length === 0 ? <div className="text-xs text-[var(--muted)]">Clean.</div> : <ul className="text-[12px] space-y-0.5">{s.dirty.map((d) => <li key={d.path}><span className="text-[var(--muted)] w-5 inline-block">{d.status}</span>{d.path}</li>)}</ul>}
+        <div className="label mb-1">Changes ({s.dirty.length})</div>
+        {s.dirty.length === 0 ? <div className="text-xs text-[var(--muted)]">Clean.</div> : <ul className="text-xs space-y-0.5">{s.dirty.map((d) => <li key={d.path}><span className="text-[var(--muted)] w-5 inline-block">{d.status}</span>{d.path}</li>)}</ul>}
       </div>
       {s.dirty.length > 0 && (
         <div className="flex gap-2">
@@ -214,7 +214,7 @@ function Git() {
           <button className="btn" disabled={!msg.trim()} onClick={() => { run(() => api.git.commit(msg.trim()), "Commit"); setMsg(""); }}>Commit all</button>
         </div>
       )}
-      {log.length > 0 && <div><div className="text-[11px] uppercase tracking-wider text-[var(--muted)] mb-1">History of this file</div><ul className="text-[12px] space-y-1">{log.map((l) => <li key={l.hash}><span className="text-[var(--muted)]">{l.hash}</span> {l.subject} <span className="text-[var(--muted)]">· {l.when}</span></li>)}</ul></div>}
+      {log.length > 0 && <div><div className="label mb-1">History of this file</div><ul className="text-xs space-y-1">{log.map((l) => <li key={l.hash}><span className="text-[var(--muted)]">{l.hash}</span> {l.subject} <span className="text-[var(--muted)]">· {l.when}</span></li>)}</ul></div>}
     </div>
   );
 }

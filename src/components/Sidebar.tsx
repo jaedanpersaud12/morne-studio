@@ -34,7 +34,7 @@ export default function Sidebar() {
             <div className="text-xs text-[var(--muted)] px-1 py-1">{hits.length} hits</div>
             {hits.map((h, i) => (
               <button key={i} onClick={() => open(h.file, h.line)} className="block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
-                <div className="text-[11px] text-[var(--muted)]">{h.kind === "chapter" ? "ch " : ""}{h.title} · L{h.line}</div>
+                <div className="text-xs text-[var(--muted)]">{h.kind === "chapter" ? "ch " : ""}{h.title} · L{h.line}</div>
                 <div className="line-clamp-2 text-[13px]">{h.text}</div>
               </button>
             ))}
@@ -44,14 +44,14 @@ export default function Sidebar() {
             <Section label="Chapters">
               {tree?.chapters.map((c) => (
                 <Row key={c.id} active={openPath === `chapters/${c.id}/LATEST.md`} onClick={() => open(`chapters/${c.id}/LATEST.md`)}
-                  left={<><span className="text-[var(--muted)] tabular-nums w-5 inline-block">{c.number}</span>{c.title}</>}
-                  right={<span className="flex items-center gap-2"><span className="pov" data-pov={c.pov ?? ""}>{c.pov ?? "—"}</span><span className="tabular-nums">{(c.words / 1000).toFixed(1)}k</span></span>} />
+                  left={<><span className="text-[var(--muted)] num w-5 inline-block">{c.number}</span>{c.title}</>}
+                  right={<span className="flex items-center gap-2"><span className="pov" data-pov={c.pov ?? ""}>{c.pov ?? "—"}</span><span className="num">{(c.words / 1000).toFixed(1)}k</span></span>} />
               ))}
             </Section>
             <Section label="Bible" collapsed={!showBible} onToggle={() => setShowBible((s) => !s)}>
               {tree?.bible.map((b) => (
                 <Row key={b.path} active={openPath === b.path} onClick={() => open(b.path)}
-                  left={<span className="truncate">{b.title.replace(/^\d+\.\s*/, "")}</span>} right={<span className="text-[var(--muted)] text-[11px]">{b.path.includes("/cast/") ? "cast" : b.path.match(/bible\/(\d+)/)?.[1] ?? ""}</span>} />
+                  left={<span className="truncate" title={b.title}>{b.title.replace(/^\d+\.\s*/, "")}</span>} right={<span className="text-[var(--muted)] text-xs">{b.path.includes("/cast/") ? "cast" : b.path.match(/bible\/(\d+)/)?.[1] ?? ""}</span>} />
               ))}
               {tree?.other.map((b) => (
                 <Row key={b.path} active={openPath === b.path} onClick={() => open(b.path)} left={<span className="truncate">{b.path}</span>} right={null} />
@@ -67,7 +67,7 @@ export default function Sidebar() {
 function Section({ label, children, collapsed, onToggle }: { label: string; children: React.ReactNode; collapsed?: boolean; onToggle?: () => void }) {
   return (
     <div className="mb-2">
-      <button onClick={onToggle} className="w-full text-left text-[11px] uppercase tracking-wider text-[var(--muted)] px-2 py-1.5 flex items-center justify-between">
+      <button onClick={onToggle} className="w-full text-left label px-2 py-1.5 flex items-center justify-between">
         {label}{onToggle && <span>{collapsed ? "+" : "–"}</span>}
       </button>
       {!collapsed && <div>{children}</div>}
@@ -76,7 +76,7 @@ function Section({ label, children, collapsed, onToggle }: { label: string; chil
 }
 function Row({ left, right, active, onClick }: { left: React.ReactNode; right: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left ${active ? "bg-[var(--active)] text-[var(--fg)]" : "hover:bg-[var(--hover)]"}`}>
+    <button onClick={onClick} className={`row w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left ${active ? "bg-[var(--active)] text-[var(--fg)]" : "hover:bg-[var(--hover)]"}`}>
       <span className="truncate">{left}</span><span className="text-xs text-[var(--muted)] shrink-0">{right}</span>
     </button>
   );
