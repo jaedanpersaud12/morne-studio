@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
 import { inlineExtension, inlineField, setInline } from "../inlineAi";
 import InlineBar from "./InlineBar";
+import { agentMarkField, setAgentMark } from "../agentMarks";
 import { EditorView, keymap, highlightActiveLine, Decoration, MatchDecorator, ViewPlugin, hoverTooltip, drawSelection, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -205,6 +206,7 @@ export default function Editor() {
         noteComp.of(notesExtension(notes, setActiveNote)),
         readComp.of(readingExtension(readingLine)),
         inlineExtension,
+        agentMarkField,
         EditorView.updateListener.of((u) => {
           const il = u.state.field(inlineField);
           if (il !== u.startState.field(inlineField)) useStore.setState({ inline: il });
@@ -258,6 +260,19 @@ export default function Editor() {
   }, [file?.content, say, setDirty]);
   // swap entity extension when entities load/change
   useEffect(() => { view.current?.dispatch({ effects: entComp.reconfigure(entityExtension(entities, setEntity)) }); }, [entities, entComp, setEntity]);
+
+  // Claude's live marks (MCP): show the lines being read or just edited
+  const agentMark = useStore((s) => s.agentMark);
+  useEffect(() => {
+    const v = view.current; if (!v) return;
+    if (!agentMark || agentMark.path !== openPath) { v.dispatch({ effects: setAgentMark.of(null) }); return; }
+    v.dispatch({ effects: [setAgentMark.of(agentMark), EditorView.scrollIntoView(v.state.doc.line(Math.min(agentMark.from, v.state.doc.lines)).from, { y: "center" })] });
+    if (agentMark.kind !== "read" || !agentMark.live) {
+      const key = agentMark.key;
+      const t = setTimeout(() => { if (useStore.getState().agentMark?.key === key) useStore.setState({ agentMark: null }); }, agentMark.kind === "edit" ? 4000 : 2200);
+      return () => clearTimeout(t);
+    }
+  }, [agentMark, openPath, file?.content]);
 
   // jump to a line (from backlinks/search)
   useEffect(() => {

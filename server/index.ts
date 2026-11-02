@@ -15,7 +15,7 @@ import * as tts from "./tts";
 import { existsSync as fileExists } from "node:fs";
 import { run as runClaude } from "./claude";
 import { watch } from "node:fs";
-import type { StudioEvent } from "../shared/types";
+import type { StudioEvent, AgentActivity } from "../shared/types";
 
 // ---- live events: every open Studio window hears about edits from MCP, the other machine, or another window ----
 const listeners = new Set<(e: StudioEvent) => void>();
@@ -152,6 +152,17 @@ api.get("/events", (c) => streamText(c, async (stream) => {
   listeners.delete(send);
 }));
 api.post("/ui/goto", async (c) => { const { path: p, line } = await c.req.json<{ path: string; line?: number }>(); broadcast({ t: "goto", path: p, line }); return c.json({ ok: true, windows: listeners.size }); });
+
+// ---- agent activity: what Claude is doing over MCP, live ----
+const activity: AgentActivity[] = [];
+api.post("/agent/activity", async (c) => {
+  const a = await c.req.json<AgentActivity>();
+  const i = activity.findIndex((x) => x.id === a.id);
+  if (i >= 0) activity[i] = { ...activity[i], ...a }; else { activity.push(a); if (activity.length > 200) activity.shift(); }
+  broadcast({ t: "agent", a });
+  return c.json({ ok: true });
+});
+api.get("/agent/activity", (c) => c.json(activity.slice(-80)));
 
 // ---- notes ----
 api.get("/notes", async (c) => c.json(await extras.listNotes()));

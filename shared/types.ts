@@ -106,4 +106,8 @@ export type AiEvent =
   | { t: "done"; ms: number; usage: { input: number; output: number; cached: number }; sources: AiSource[] }
   | { t: "error"; message: string };
 
-export type StudioEvent = { t: "changed"; path: string; source: "studio" | "mcp" | "disk"; label?: string } | { t: "data"; key: string; source: "studio" | "mcp" } | { t: "goto"; path: string; line?: number } | { t: "hello" };
+export type StudioEvent = { t: "changed"; path: string; source: "studio" | "mcp" | "disk"; label?: string } | { t: "data"; key: string; source: "studio" | "mcp" } | { t: "goto"; path: string; line?: number } | { t: "agent"; a: AgentActivity } | { t: "hello" };
+export type AgentActivity = {
+  id: string; tool: string; state: "running" | "done" | "error"; label: string; at: number; ms?: number;
+  path?: string; from?: number; to?: number; summary?: string; diff?: { old: string; new: string };
+};

@@ -17,6 +17,7 @@ import { Toaster } from "sonner";
 import { PenLine, Kanban, CalendarRange, UsersRound, Scale, Network, Search, Focus, Minimize2, Type, Code, BookOpen } from "lucide-react";
 import { IconButton, Segmented, TipProvider, Kbd } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
+import AgentIsland from "./components/AgentIsland";
 import { useLiveEvents } from "./liveEvents";
 
 const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
@@ -111,6 +112,7 @@ export default function App() {
             {view === "map" && <MapView />}
           </div>
         )}
+        <AgentIsland />
       </main>
       </div>
       <div className={`min-h-0 overflow-hidden ${writing && !focus ? "py-2 pr-2" : ""}`}>{writing && <RightPanel />}</div>

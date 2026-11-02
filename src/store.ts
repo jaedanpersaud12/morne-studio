@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { toast as sonner } from "sonner";
 import type { Conflict } from "../shared/types";
 import type { Inline } from "./inlineAi";
+import type { AgentActivity } from "../shared/types";
+export type AgentMark = { path: string; from: number; to: number; kind: "read" | "edit" | "point"; key: string; live: boolean };
 
 export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude" | "notes" | "history";
 export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map";
@@ -27,6 +29,7 @@ type S = {
   inline: Inline | null;
   paletteOpen: boolean;
   syncError: string | null;
+  agent: AgentActivity[]; agentFollow: boolean; agentMark: AgentMark | null; agentUndone: string[];
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -49,6 +52,7 @@ export const useStore = create<S>((set, get) => ({
   inline: null,
   paletteOpen: false,
   syncError: null,
+  agent: [], agentFollow: (() => { try { return localStorage.getItem("mbs-follow") !== "0"; } catch { return true; } })(), agentMark: null, agentUndone: [],
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
   activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),
