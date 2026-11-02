@@ -5,6 +5,8 @@ import { api } from "../api";
 import { useStore, type Panel } from "../store";
 import { TICS } from "../../shared/tics";
 import ClaudePanel from "./ClaudePanel";
+import { Segmented } from "./ui";
+import { History as HistoryIcon, ListChecks, Sparkles, StickyNote, UsersRound } from "lucide-react";
 import NotesPanel from "./NotesPanel";
 import { goTo } from "../store";
 
@@ -15,9 +17,10 @@ function hl(text: string, aliases: string[]) {
   return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
 }
 
-const TABS: { id: Panel; label: string }[] = [
-  { id: "claude", label: "Claude" }, { id: "notes", label: "Notes" }, { id: "cast", label: "Cast" },
-  { id: "stats", label: "Tics" }, { id: "history", label: "History" },
+const TABS: { id: Panel; label: string; icon: React.ReactNode }[] = [
+  { id: "claude", label: "Claude", icon: <Sparkles size={13} /> }, { id: "notes", label: "Notes", icon: <StickyNote size={13} /> },
+  { id: "cast", label: "Cast", icon: <UsersRound size={13} /> }, { id: "stats", label: "Tics", icon: <ListChecks size={13} /> },
+  { id: "history", label: "History", icon: <HistoryIcon size={13} /> },
 ];
 
 export default function RightPanel() {
@@ -27,13 +30,12 @@ export default function RightPanel() {
   const openPath = useStore((s) => s.openPath);
   const openNotes = notes.filter((n) => !n.resolved && n.file === openPath).length;
   return (
-    <aside className="h-full min-h-0 flex flex-col bg-[var(--panel)] border-l border-[var(--line)]">
-      <div role="tablist" className="flex gap-0.5 px-2 pt-2 border-b border-[var(--line)] overflow-x-auto shrink-0">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={panel === t.id} onClick={() => setPanel(t.id)} className={`tab shrink-0 px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}{t.id === "notes" && openNotes > 0 && <span className="ml-1 num text-[var(--accent)]">{openNotes}</span>}</button>
-        ))}
+    <aside className="surface h-full min-h-0 flex flex-col">
+      <div className="px-2 pt-2 pb-1 shrink-0">
+        <Segmented label="Panel" size="sm" value={panel as Panel} onChange={setPanel}
+          items={TABS.map((t) => ({ ...t, tip: t.label, badge: t.id === "notes" && openNotes > 0 ? <span className="ui-seg-badge num">{openNotes}</span> : undefined }))} />
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 text-sm">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3 pb-4 text-sm">
         {panel === "cast" && <CastTab />}
         {panel === "history" && <History />}
         {panel === "notes" && <NotesPanel />}

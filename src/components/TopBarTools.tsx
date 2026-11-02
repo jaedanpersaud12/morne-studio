@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useStore } from "../store";
 import { getEditorView } from "../editorBridge";
+import { IconButton } from "./ui";
+import { AudioLines, Square } from "lucide-react";
 
 // sequential single-hue ramp (dataviz blue, dark-surface steps): near zero recedes into the surface
 const RAMP = ["var(--hover)", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"];
@@ -27,7 +29,7 @@ export function ProgressBadge() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Today: ${today} of ${p.target} words. Streak ${p.streak} days.`}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[var(--muted)] hover:text-[var(--fg)] num whitespace-nowrap shrink-0">
+        className="ui-progress num">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
           <circle cx="9" cy="9" r={R} fill="none" stroke="var(--line)" strokeWidth="2.5" />
           <circle cx="9" cy="9" r={R} fill="none" stroke={pct >= 1 ? "var(--add)" : "var(--accent)"} strokeWidth="2.5" strokeLinecap="round"
@@ -171,8 +173,8 @@ export function ReadAloud({ pov }: { pov: string | null }) {
     setPlaying(false); setReadingLine(null);
   };
   return (
-    <button onClick={() => (playing ? stopRef.current() : start())} className="shrink-0 hover:text-[var(--fg)]" title={playing ? "Stop reading" : `Read aloud from the cursor${pov ? ` in ${pov}'s voice` : ""}`} aria-pressed={playing}>
-      {playing ? "■ stop" : "▶ read"}
-    </button>
+    <IconButton label={playing ? "Stop reading" : `Read aloud from the cursor${pov ? ` in ${pov}'s voice` : ""}`} onClick={() => (playing ? stopRef.current() : start())} active={playing}>
+      {playing ? <Square size={13} fill="currentColor" /> : <AudioLines size={15} />}
+    </IconButton>
   );
 }

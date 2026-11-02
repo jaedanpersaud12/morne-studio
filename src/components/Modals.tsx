@@ -4,20 +4,7 @@ import { diffArrays } from "diff";
 import { api } from "../api";
 import { useStore } from "../store";
 import type { Conflict } from "../../shared/types";
-
-function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { const d = ref.current; if (d && !d.open) d.showModal(); }, []);
-  return (
-    <dialog ref={ref} onClose={onClose} onCancel={onClose} className={`modal ${wide ? "w-[min(1100px,94vw)]" : "w-[min(480px,94vw)]"}`} aria-label={title}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--line)]">
-        <h2 className="font-semibold">{title}</h2>
-        <button className="text-[var(--muted)] hover:text-[var(--fg)] px-1" aria-label="Close" onClick={() => ref.current?.close()}>✕</button>
-      </div>
-      <div className="p-4 max-h-[80vh] overflow-y-auto">{children}</div>
-    </dialog>
-  );
-}
+import { Modal } from "./ui";
 
 export function SettingsModal() {
   const { settingsOpen, setSettingsOpen, say } = useStore();

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast as sonner } from "sonner";
 import type { Conflict } from "../shared/types";
 import type { Inline } from "./inlineAi";
 
@@ -24,6 +25,7 @@ type S = {
   readingLine: number | null; setReadingLine: (n: number | null) => void;
   modes: { chapter: MdMode; bible: MdMode }; setMode: (m: MdMode) => void;
   inline: Inline | null;
+  paletteOpen: boolean;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -40,10 +42,11 @@ export const useStore = create<S>((set, get) => ({
   jumpLine: null, setJumpLine: (jumpLine) => set({ jumpLine }),
   focus: false, toggleFocus: () => set({ focus: !get().focus }),
   toast: null,
-  say: (toast) => { set({ toast }); if (toast) setTimeout(() => set((s) => (s.toast === toast ? { toast: null } : {})), 2800); },
+  say: (toast) => { if (toast) sonner(toast); },
   highlightTic: null, setHighlightTic: (highlightTic) => set({ highlightTic }),
   selection: null, setSelection: (selection) => set({ selection }),
   inline: null,
+  paletteOpen: false,
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
   activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),
