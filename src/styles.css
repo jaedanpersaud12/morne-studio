@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #15130f;
+  --panel: #1b1914;
+  --fg: #ece6da;
+  --fg-dim: #b9b1a2;
+  --muted: #7d7568;
+  --line: #2a2620;
+  --hover: #221f19;
+  --active: #2b271f;
+  --accent: #e0a458;
+  --sel: #3a3225;
+  --add: #8fc48a;
+  --del: #d98a7a;
+  --font-prose: "Literata", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body, #root { height: 100%; }
+body { margin: 0; font-family: var(--font-ui); background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; }
+
+.btn { @apply rounded-md border border-[var(--line)] bg-[var(--bg)] px-2.5 py-1 text-xs hover:border-[var(--accent)] disabled:opacity-40; }
+.chip { @apply rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] hover:border-[var(--accent)]; }
+.chip-on { @apply border-[var(--accent)] text-[var(--accent)]; }
+.ent-chip { @apply rounded-full px-2 py-0.5 text-[12px] border; }
+
+/* entity marks in the editor */
+.ent { border-bottom: 1px dotted; padding-bottom: 1px; cursor: default; }
+.ent-main { border-color: color-mix(in oklab, var(--accent) 70%, transparent); }
+.ent-antagonist { border-color: color-mix(in oklab, var(--del) 80%, transparent); }
+.ent-supporting { border-color: color-mix(in oklab, var(--fg) 35%, transparent); }
+.ent-chip.ent-main { border-color: color-mix(in oklab, var(--accent) 60%, transparent); color: var(--accent); }
+.ent-chip.ent-antagonist { border-color: color-mix(in oklab, var(--del) 70%, transparent); color: var(--del); }
+.ent-chip.ent-supporting { border-color: var(--line); color: var(--fg-dim); }
+
+.ent-tip { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; max-width: 300px; font-family: var(--font-ui); font-size: 12px; line-height: 1.4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.ent-tip .t-name { font-weight: 600; font-size: 13px; }
+.ent-tip .t-el { color: var(--accent); font-size: 11px; margin-bottom: 4px; }
+.ent-tip .t-line { color: var(--fg-dim); }
+.ent-tip .t-hint { color: var(--muted); font-size: 10px; margin-top: 6px; }
+
+/* markdown */
+.md-h1 { font-size: 1.45em; font-weight: 600; letter-spacing: -0.01em; }
+.md-h2 { font-size: 1.15em; font-weight: 600; }
+.md-h { font-weight: 600; }
+.md-mark { color: var(--muted); }
+.md-hr { color: var(--muted); letter-spacing: .3em; }
+.md-link { color: var(--accent); }
+
+/* pov chip */
+.pov { @apply rounded px-1 text-[10px] uppercase tracking-wide; background: var(--hover); }
+
+/* diff */
+.diff ins { text-decoration: none; background: color-mix(in oklab, var(--add) 22%, transparent); color: var(--fg); border-radius: 2px; }
+.diff del { background: color-mix(in oklab, var(--del) 22%, transparent); color: var(--fg-dim); border-radius: 2px; }
+
+/* focus mode: dim everything but the active paragraph's neighbourhood */
+.focus .cm-line { opacity: .45; transition: opacity .15s; }
+.focus .cm-activeLine, .focus .cm-activeLine + .cm-line, .focus .cm-line:has(+ .cm-activeLine) { opacity: 1; }
+
+::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
