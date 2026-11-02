@@ -69,6 +69,9 @@ async function describe(tool: string, a: any): Promise<{ label: string } & Meta>
     case "build_manuscript": return { label: "Building the manuscript" };
     case "sync_status": return { label: "Checking sync" };
     case "sync": return { label: "Syncing with GitHub" };
+    case "wiki_index": return { label: "Opening the wiki" };
+    case "wiki_page": return { label: `Wiki · ${chLabel(file ?? a.path)}`, path: file };
+    case "character": return { label: `Looking up ${clip(a.name, 24)}` };
     case "open_in_studio": return { label: `Pointing at ${chLabel(file!)}${a.line ? ` L${a.line}` : ""}`, path: file, from: a.line, to: a.line };
     default: return { label: tool };
   }
@@ -296,6 +299,67 @@ server.registerTool("sync", {
   description: "Pull the other machine's changes, then push this machine's.",
   inputSchema: {},
 }, wrap("sync", async () => { const a = await send("POST", "/git/pull"); const b = a.ok ? await send("POST", "/git/push") : null; return ok(`pull: ${a.message}${b ? `\npush: ${b.message}` : ""}`); }));
+
+// ---------------- wiki ----------------
+const fmtLinksHere = (w: any) => w.linksHere.length
+  ? w.linksHere.map((l: any) => `  ${l.kind === "chapter" ? "ch" : "bible"} ${l.file} L${l.line} — ${l.text}`).join("\n")
+  : "  (nothing links here)";
+const fmtAppears = (w: any) => w.appears
+  ? `MENTIONS BY CHAPTER\n${w.appears.counts.map((c: any) => `  ch ${c.number} ${c.title}: ${c.count}${c.pov ? " (POV)" : ""}`).join("\n")}\n` +
+    `FIRST APPEARS: ${w.appears.first ? `${w.appears.first.file} L${w.appears.first.line} — ${w.appears.first.text}` : "not yet on the page"}\n` +
+    `SAMPLE LINES\n${w.appears.samples.map((x: any) => `  ${x.file} L${x.line} — ${x.text}`).join("\n") || "  none"}`
+  : "";
+
+server.registerTool("wiki_index", {
+  title: "Wiki index",
+  description: "Every bible page grouped by wiki category (Start here, People, World, Story, Craft), with word counts and when each was last edited.",
+  inputSchema: {},
+}, wrap("wiki_index", async () => {
+  const w = await get("/wiki/index");
+  return ok(w.categories.map((c: any) => {
+    const ps = w.pages.filter((p: any) => p.category === c.id);
+    return ps.length ? `${c.label.toUpperCase()}\n${ps.map((p: any) => `  ${p.entity ? `${p.entity.short} (${p.entity.age ?? "?"}, ${p.entity.element ?? "?"})` : p.title} · ${p.path} · ${p.words} words${p.edited ? ` · edited ${new Date(p.edited).toISOString().slice(0, 10)}` : ""}`).join("\n")}` : "";
+  }).filter(Boolean).join("\n\n"));
+}));
+
+server.registerTool("wiki_page", {
+  title: "Wiki page with dependencies",
+  description: "A bible page as the wiki sees it: what links here (every chapter and page that depends on it), see-also links, and for character pages their infobox, mentions per chapter, first appearance and sample lines. Use before changing a fact, to find everything that relies on it.",
+  inputSchema: { path: z.string().describe("bible path, e.g. bible/03-power-system.md or bible/cast/kit.md") },
+}, wrap("wiki_page", async ({ path: p }, ctx) => {
+  const w = await get(`/wiki/page${q({ path: p })}`);
+  ctx.meta = { path: p, summary: `${w.linksHere.length} link${w.linksHere.length === 1 ? "" : "s"} here${w.appears ? ` · in ${w.appears.counts.filter((c: any) => c.count).length} chapters` : ""}` };
+  const e = w.entity;
+  return ok([
+    `${w.title} · ${w.path} · ${w.words} words · category ${w.category}${w.edited ? ` · edited ${w.edited.when}` : ""}`,
+    e ? `INFOBOX: ${e.name} · age ${e.age ?? "?"} · element ${e.element ?? "?"} · tier ${e.tier ?? "?"} · ${e.group}${e.aliases.length ? ` · also ${e.aliases.join(", ")}` : ""}\n${e.oneLine ?? ""}` : "",
+    `WHAT LINKS HERE (${w.linksHere.length})\n${fmtLinksHere(w)}`,
+    `SEE ALSO\n${w.seeAlso.map((x: any) => `  ${x.title} · ${x.path}`).join("\n") || "  none"}`,
+    fmtAppears(w),
+  ].filter(Boolean).join("\n\n"));
+}));
+
+server.registerTool("character", {
+  title: "Character lookup",
+  description: "Everything about one character by any name or nickname: their bible page's infobox, mentions per chapter, first appearance, every chapter line that names them (up to `limit`), and what links to their page.",
+  inputSchema: { name: z.string(), limit: z.number().int().min(1).max(80).optional() },
+}, wrap("character", async ({ name, limit }, ctx) => {
+  const ents = await get<any[]>("/entities");
+  const n = name.toLowerCase();
+  const e = ents.find((x) => x.id === n || x.short.toLowerCase() === n || x.name.toLowerCase() === n) ?? ents.find((x) => x.aliases.some((a: string) => a.toLowerCase() === n)) ?? ents.find((x) => x.name.toLowerCase().includes(n));
+  if (!e) throw new Error(`No character "${name}". Known: ${ents.map((x) => x.short).join(", ")}`);
+  const hits = (await get<any[]>(`/backlinks/${encodeURIComponent(e.id)}`)).filter((h) => h.kind === "chapter");
+  const w = e.file ? await get(`/wiki/page${q({ path: e.file })}`) : null;
+  ctx.meta = { path: e.file ?? undefined, summary: `${e.short} · ${hits.length} lines in the chapters` };
+  return ok([
+    `${e.name}${e.age ? `, ${e.age}` : ""} · ${e.group}${e.element ? ` · ${e.element}` : ""}${e.tier ? ` · tier ${e.tier}` : ""}${e.file ? ` · ${e.file}` : " · no page of their own (see bible/cast/supporting.md)"}`,
+    `NAMES: ${e.aliases.join(", ")}`,
+    e.oneLine ?? "",
+    w ? fmtAppears(w) : "",
+    `EVERY CHAPTER LINE (${hits.length}${hits.length > (limit ?? 30) ? `, showing ${limit ?? 30}` : ""})\n${hits.slice(0, limit ?? 30).map((h) => `  ${h.file} L${h.line} — ${unmark(h.text).slice(0, 240)}`).join("\n") || "  none yet"}`,
+    w ? `WHAT LINKS TO THEIR PAGE (${w.linksHere.length})\n${fmtLinksHere(w)}` : "",
+  ].filter(Boolean).join("\n\n"));
+}));
 
 server.registerTool("open_in_studio", {
   title: "Show a passage in Studio",

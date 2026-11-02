@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { diffWords } from "diff";
-import { BookOpen, Check, ChevronDown, FilePen, Hammer, Kanban, LayoutList, Lightbulb, LocateFixed, MessageSquareText, RefreshCw, Scale, Search, ShieldCheck, Sparkles, StickyNote, Undo2, UsersRound, X } from "lucide-react";
+import { BookMarked, BookOpen, Check, ChevronDown, FilePen, Hammer, Kanban, LayoutList, Lightbulb, LocateFixed, MessageSquareText, RefreshCw, Scale, Search, ShieldCheck, Sparkles, StickyNote, Undo2, UsersRound, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { goTo, useStore } from "../store";
@@ -12,6 +12,7 @@ const ICON: Record<string, React.ReactNode> = {
   snapshot: <Check size={13} />, get_board: <Kanban size={13} />, update_board: <Kanban size={13} />, get_knowledge: <UsersRound size={13} />,
   update_knowledge: <UsersRound size={13} />, get_ledger: <Scale size={13} />, canon_checks: <ShieldCheck size={13} />, build_manuscript: <Hammer size={13} />,
   sync_status: <RefreshCw size={13} />, sync: <RefreshCw size={13} />, open_in_studio: <LocateFixed size={13} />,
+  wiki_index: <BookMarked size={13} />, wiki_page: <BookMarked size={13} />, character: <UsersRound size={13} />,
 };
 const WRITES = new Set(["edit_file", "write_file", "add_note", "update_board", "update_knowledge", "snapshot", "sync", "build_manuscript"]);
 
