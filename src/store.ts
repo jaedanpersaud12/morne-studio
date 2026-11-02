@@ -17,6 +17,8 @@ type S = {
   toggleFocus: () => void;
   toast: string | null;
   say: (m: string | null) => void;
+  highlightTic: string | null;
+  setHighlightTic: (id: string | null) => void;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -34,6 +36,8 @@ export const useStore = create<S>((set, get) => ({
   setJumpLine: (jumpLine) => set({ jumpLine }),
   focus: false,
   toggleFocus: () => set({ focus: !get().focus }),
+  highlightTic: null,
+  setHighlightTic: (highlightTic) => set({ highlightTic }),
   toast: null,
   say: (toast) => { set({ toast }); if (toast) setTimeout(() => set((s) => (s.toast === toast ? { toast: null } : {})), 2500); },
 }));

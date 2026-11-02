@@ -44,8 +44,9 @@ export async function search(q: string, limit = 60): Promise<SearchHit[]> {
   await ensure();
   const safeQ = q.trim().replace(/["']/g, " ").split(/\s+/).filter(Boolean).map((w) => `"${w}"`).join(" ");
   if (!safeQ) return [];
-  const rows = db.query(`SELECT file, kind, title, line, text, bm25(para) AS score FROM para WHERE para MATCH ? ORDER BY score LIMIT ?`).all(safeQ, limit) as any[];
-  return rows.map((r) => ({ ...r, score: -r.score }));
+  const rows = db.query(`SELECT file, kind, title, line, snippet(para, 4, '\u0001', '\u0002', '…', 22) AS text, bm25(para) AS score FROM para WHERE para MATCH ? ORDER BY score LIMIT ?`).all(safeQ, limit) as any[];
+  const clean = (s: string) => s.replace(/\|?\s*-{3,}\s*\|?/g, " ").replace(/\s*\|\s*/g, " · ").replace(/[#*_>`]+/g, "").replace(/\s{2,}/g, " ").trim();
+  return rows.map((r) => ({ ...r, text: clean(r.text), score: -r.score }));
 }
 
 /** Every paragraph in which an entity (any alias, word-bounded) appears. Chapters first, in order, then bible. */

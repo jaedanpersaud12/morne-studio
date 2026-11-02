@@ -3,6 +3,14 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { diffWords } from "diff";
 import { api } from "../api";
 import { useStore, type Panel } from "../store";
+import { TICS } from "../../shared/tics";
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function hl(text: string, aliases: string[]) {
+  if (!aliases.length) return text;
+  const re = new RegExp(`(?<![A-Za-z])(${aliases.map(esc).join("|")})(?![A-Za-z])`, "g");
+  return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
+}
 
 const TABS: { id: Panel; label: string }[] = [
   { id: "cast", label: "Cast" }, { id: "entity", label: "Card" }, { id: "backlinks", label: "Links" },
@@ -106,7 +114,7 @@ function Backlinks() {
       {items.map((l, i) => (
         <button key={i} onClick={() => go(l.file, l.line)} className="block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
           <div className="text-xs text-[var(--muted)]">{l.title} · L{l.line}</div>
-          <div className="text-[13px] leading-snug line-clamp-3">{l.text}</div>
+          <div className="text-[13px] leading-snug line-clamp-3">{hl(l.text, e!.aliases)}</div>
         </button>
       ))}
     </div>
@@ -164,10 +172,10 @@ function collapse(s: string) {
 }
 
 function Stats() {
-  const { openPath } = useStore();
+  const { openPath, highlightTic, setHighlightTic } = useStore();
   const { data: f } = useQuery({ queryKey: ["fingerprint", openPath], queryFn: () => api.fingerprint(openPath!), enabled: !!openPath });
   if (!f) return <div className="text-[var(--muted)]">Open a file.</div>;
-  const rows = Object.entries(f.counts).sort((x, y) => y[1] - x[1]);
+  const rows = TICS.map((t) => [t.id, f.counts[t.id] ?? 0, t.label] as const).sort((x, y) => y[1] - x[1]);
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -175,10 +183,12 @@ function Stats() {
           <div key={k} className="rounded-md bg-[var(--bg)] py-2"><div className="text-base font-semibold num">{v}</div><div className="label">{k}</div></div>
         ))}
       </div>
-      <div className="label">Tic counts (bible/14)</div>
+      <div className="label">Tic counts (bible/14) <span className="normal-case tracking-normal">· click to highlight</span></div>
       <table className="w-full text-[13px]">
-        <tbody>{rows.map(([k, n]) => (
-          <tr key={k} className="border-t border-[var(--line)]"><td className="py-1 pr-2">{k}</td><td className="py-1 text-right num font-medium">{n}</td><td className="py-1 pl-2 text-right num text-[var(--muted)] w-14">{f.per1k[k]}/1k</td></tr>
+        <tbody>{rows.map(([k, n, label]) => (
+          <tr key={k} role="button" tabIndex={0} aria-pressed={highlightTic === k} onClick={() => n && setHighlightTic(highlightTic === k ? null : k)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); n && setHighlightTic(highlightTic === k ? null : k); } }}
+            className={`border-t border-[var(--line)] ${n ? "cursor-pointer hover:bg-[var(--hover)]" : "opacity-50"} ${highlightTic === k ? "bg-[var(--active)]" : ""}`}>
+            <td className="py-1 pr-2">{highlightTic === k ? "● " : ""}{label}</td><td className="py-1 text-right num font-medium">{n}</td><td className="py-1 pl-2 text-right num text-[var(--muted)] w-14">{f.per1k[k]}/1k</td></tr>
         ))}</tbody>
       </table>
       <div className="label">Section enders</div>

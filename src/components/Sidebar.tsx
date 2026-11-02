@@ -34,8 +34,8 @@ export default function Sidebar() {
             <div className="text-xs text-[var(--muted)] px-1 py-1">{hits.length} hits</div>
             {hits.map((h, i) => (
               <button key={i} onClick={() => open(h.file, h.line)} className="block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
-                <div className="text-xs text-[var(--muted)]">{h.kind === "chapter" ? "ch " : ""}{h.title} · L{h.line}</div>
-                <div className="line-clamp-2 text-[13px]">{h.text}</div>
+                <div className="text-xs text-[var(--muted)]"><span className={`kind kind-${h.kind}`}>{h.kind === "chapter" ? "ch" : "bible"}</span> {h.title.replace(/^\d+\.\s*/, "")} · L{h.line}</div>
+                <div className="line-clamp-3 text-[13px] leading-snug">{renderMarks(h.text)}</div>
               </button>
             ))}
           </div>
@@ -62,6 +62,10 @@ export default function Sidebar() {
       </div>
     </aside>
   );
+}
+
+export function renderMarks(s: string) {
+  return s.split(/(\u0001[^\u0002]*\u0002)/).map((part, i) => part.startsWith("\u0001") ? <mark key={i}>{part.slice(1, -1)}</mark> : part);
 }
 
 function Section({ label, children, collapsed, onToggle }: { label: string; children: React.ReactNode; collapsed?: boolean; onToggle?: () => void }) {

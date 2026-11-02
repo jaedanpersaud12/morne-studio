@@ -25,7 +25,7 @@ export default function App() {
   useEffect(() => { document.title = `${dirty ? "• " : ""}${title || "Morne Bay Studio"}`; }, [title, dirty]);
 
   return (
-    <div className={`h-screen grid ${focus ? "grid-cols-[0_1fr_0]" : "grid-cols-[260px_1fr_360px]"} bg-[var(--bg)] text-[var(--fg)]`}>
+    <div className={`h-screen grid ${focus ? "grid-cols-[0_1fr_0]" : "grid-cols-[240px_1fr_320px] min-[1400px]:grid-cols-[260px_1fr_360px]"} bg-[var(--bg)] text-[var(--fg)]`}>
       <div className="overflow-hidden"><Sidebar /></div>
       <main className="relative min-w-0 flex flex-col">
         <header className="h-10 flex items-center justify-between px-5 text-xs num text-[var(--muted)] border-b border-[var(--line)]">

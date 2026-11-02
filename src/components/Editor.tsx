@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
-import { EditorView, keymap, lineNumbers, highlightActiveLine, Decoration, MatchDecorator, ViewPlugin, hoverTooltip, drawSelection, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { EditorView, keymap, highlightActiveLine, Decoration, MatchDecorator, ViewPlugin, hoverTooltip, drawSelection, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useStore } from "../store";
 import type { Entity } from "../../shared/types";
+import { TICS, ticRegex } from "../../shared/tics";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -70,6 +71,13 @@ function entityExtension(entities: Entity[], onPick: (id: string) => void) {
   return [plugin, tip];
 }
 
+function ticExtension(id: string | null) {
+  const tic = TICS.find((t) => t.id === id);
+  if (!tic) return [];
+  const deco = new MatchDecorator({ regexp: ticRegex(tic), decoration: Decoration.mark({ class: "tic-hit" }) });
+  return ViewPlugin.fromClass(class { decorations: DecorationSet; constructor(v: EditorView) { this.decorations = deco.createDeco(v); } update(u: ViewUpdate) { this.decorations = deco.updateDeco(u, this.decorations); } }, { decorations: (v) => v.decorations });
+}
+
 const mdHighlight = HighlightStyle.define([
   { tag: tags.heading1, class: "md-h1" },
   { tag: tags.heading2, class: "md-h2" },
@@ -86,8 +94,9 @@ export default function Editor() {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const entComp = useMemo(() => new Compartment(), []);
+  const ticComp = useMemo(() => new Compartment(), []);
   const qc = useQueryClient();
-  const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say } = useStore();
+  const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say, highlightTic } = useStore();
   const { data: file } = useQuery({ queryKey: ["file", openPath], queryFn: () => api.file(openPath!), enabled: !!openPath, staleTime: Infinity });
   const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities });
 
@@ -111,18 +120,17 @@ export default function Editor() {
     const state = EditorState.create({
       doc: file.content,
       extensions: [
-        lineNumbers({ formatNumber: (n) => (n % 10 === 0 ? String(n) : "") }),
         history(), drawSelection(), highlightActiveLine(), highlightSelectionMatches(),
         markdown(), syntaxHighlighting(mdHighlight),
         EditorView.lineWrapping,
         keymap.of([{ key: "Mod-s", run: () => { saveRef.current(); return true; } }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         entComp.of(entityExtension(entities, setEntity)),
+        ticComp.of(ticExtension(highlightTic)),
         EditorView.updateListener.of((u) => { if (u.docChanged) setDirty(true); }),
         EditorView.theme({
           "&": { height: "100%", fontSize: "17px" },
           ".cm-scroller": { fontFamily: "var(--font-prose)", lineHeight: "1.75", padding: "2.5rem 0 40vh" },
           ".cm-content": { maxWidth: "68ch", margin: "0 auto", padding: "0 1.5rem", caretColor: "var(--accent)" },
-          ".cm-gutters": { background: "transparent", border: "none", color: "var(--muted)", fontFamily: "var(--font-ui)", fontSize: "11px" },
           ".cm-activeLine": { background: "transparent" },
           ".cm-activeLineGutter": { background: "transparent" },
           "&.cm-focused": { outline: "none" },
@@ -137,6 +145,7 @@ export default function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file?.path, file?.content === undefined]);
 
+  useEffect(() => { view.current?.dispatch({ effects: ticComp.reconfigure(ticExtension(highlightTic)) }); }, [highlightTic, ticComp]);
   // swap entity extension when entities load/change
   useEffect(() => { view.current?.dispatch({ effects: entComp.reconfigure(entityExtension(entities, setEntity)) }); }, [entities, entComp, setEntity]);
 
