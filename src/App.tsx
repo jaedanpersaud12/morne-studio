@@ -17,6 +17,7 @@ import { Toaster } from "sonner";
 import { PenLine, Kanban, CalendarRange, UsersRound, Scale, Network, Search, Focus, Minimize2, Type, Code, BookOpen } from "lucide-react";
 import { IconButton, Segmented, TipProvider, Kbd } from "./components/ui";
 import CommandPalette from "./components/CommandPalette";
+import { useLiveEvents } from "./liveEvents";
 
 const VIEWS: { id: View; label: string; icon: React.ReactNode }[] = [
   { id: "write", label: "Write", icon: <PenLine size={14} /> }, { id: "board", label: "Board", icon: <Kanban size={14} /> },
@@ -30,6 +31,7 @@ const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator
 export default function App() {
   const { openPath, dirty, focus, toggleFocus, view, setPanel, setView } = useStore();
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree });
+  useLiveEvents();
   const ch = tree?.chapters.find((c) => openPath === `chapters/${c.id}/LATEST.md`);
   const title = ch ? `${ch.number}. ${ch.title}` : openPath?.split("/").pop() ?? "";
   const writing = view === "write";

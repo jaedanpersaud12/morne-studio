@@ -92,8 +92,28 @@ export function SettingsModal() {
             </label>
           ))}
         </section>
+        <McpSection aiWrites={s.aiWrites} onToggle={(v) => patch({ aiWrites: v })} mcp={(s as any).mcp} />
       </div>
     </Modal>
+  );
+}
+
+function McpSection({ aiWrites, onToggle, mcp }: { aiWrites: boolean; onToggle: (v: boolean) => void; mcp?: { command: string; args: string[] } }) {
+  const [copied, setCopied] = useState(false);
+  const snippet = JSON.stringify({ mcpServers: { "morne-bay-studio": mcp ?? { command: "bun", args: ["mcp.ts"] } } }, null, 2);
+  return (
+    <section className="space-y-2">
+      <h3 className="label">Claude over MCP</h3>
+      <label className="flex items-start justify-between gap-3">
+        <span><span className="block">AI can edit the book</span><span className="text-xs text-[var(--muted)]">Lets Claude Desktop and Claude Code change chapters, notes and planning data. Every change is committed, so History can undo it. Off = read-only.</span></span>
+        <input type="checkbox" className="mt-1 w-4 h-4" checked={aiWrites} onChange={(e) => onToggle(e.target.checked)} />
+      </label>
+      <div className="text-xs text-[var(--muted)]">Add this to Claude Desktop (Settings → Developer → Edit config), then restart Claude:</div>
+      <div className="relative">
+        <pre className="text-[11.5px] leading-relaxed bg-[var(--bg-0)] rounded-lg p-3 overflow-x-auto font-[var(--font-mono)] text-[var(--fg-dim)] shadow-[inset_0_0_0_1px_var(--line)]">{snippet}</pre>
+        <button className="btn absolute top-2 right-2" onClick={() => navigator.clipboard?.writeText(snippet).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); }).catch(() => {})}>{copied ? "Copied" : "Copy"}</button>
+      </div>
+    </section>
   );
 }
 

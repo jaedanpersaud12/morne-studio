@@ -13,5 +13,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src", "server", "shared"]
+  "include": ["src", "server", "shared", "mcp.ts"]
 }

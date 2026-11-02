@@ -6,6 +6,7 @@ echo Installing / checking packages...
 call bun install || (echo bun install failed. & pause & exit /b 1)
 echo Building...
 call bun run build || (echo Build failed. & pause & exit /b 1)
+curl -s -o nul -m 2 http://localhost:3131/api/tree && (echo Studio is already running in the background ^(Claude started it^). Opening it. & start "" http://localhost:3131 & timeout /t 3 >nul & exit /b 0)
 start "" http://localhost:3131
 echo Studio running at http://localhost:3131  (close this window to stop it)
 bun server/index.ts

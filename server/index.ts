@@ -14,11 +14,40 @@ import * as exporter from "./export";
 import * as tts from "./tts";
 import { existsSync as fileExists } from "node:fs";
 import { run as runClaude } from "./claude";
+import { watch } from "node:fs";
+import type { StudioEvent } from "../shared/types";
+
+// ---- live events: every open Studio window hears about edits from MCP, the other machine, or another window ----
+const listeners = new Set<(e: StudioEvent) => void>();
+export const broadcast = (e: StudioEvent) => { for (const l of listeners) { try { l(e); } catch {} } };
+const recentWrites = new Map<string, number>(); // paths we just wrote ourselves, so the watcher doesn't echo them
+try {
+  const pending = new Map<string, ReturnType<typeof setTimeout>>();
+  watch(BOOK, { recursive: true }, (_ev, name) => {
+    if (!name) return;
+    const rel = String(name).replace(/\\/g, "/");
+    if (rel.startsWith(".git") || !/\.(md|json)$/.test(rel)) return;
+    clearTimeout(pending.get(rel));
+    pending.set(rel, setTimeout(() => {
+      pending.delete(rel);
+      if (Date.now() - (recentWrites.get(rel) ?? 0) < 1500) return;
+      rebuild().catch(() => {});
+      broadcast({ t: "changed", path: rel, source: "disk" });
+    }, 250));
+  });
+} catch (e) { console.error("[studio] file watcher unavailable:", e); }
+const sourceOf = (c: { req: { header: (k: string) => string | undefined } }) => (c.req.header("x-studio-source") === "mcp" ? "mcp" : "studio") as "mcp" | "studio";
 
 const app = new Hono();
 const api = new Hono();
 
 api.onError((e, c) => c.json({ error: e.message }, 400));
+// the "AI can write" switch in Settings guards every change an MCP client asks for
+api.use(async (c, next) => {
+  if (c.req.method !== "GET" && c.req.header("x-studio-source") === "mcp" && !/\/(claude|ui\/goto|build|git\/pull)$/.test(c.req.path) && !(await getSettings()).aiWrites)
+    return c.text("AI writes are turned off in Studio's Settings (\"AI can edit the book\").", 403);
+  await next();
+});
 
 api.get("/tree", async (c) => c.json(await tree()));
 api.get("/entities", async (c) => c.json(await loadEntities(c.req.query("force") === "1")));
@@ -35,8 +64,12 @@ api.put("/file", async (c) => {
   if (!p.endsWith(".md")) return c.text("only .md files", 400);
   let before: string | null = null;
   try { before = await readText(p); } catch {}
+  const src = sourceOf(c);
+  if (src === "mcp" && !(await getSettings()).aiWrites) return c.text("AI writes are turned off in Studio's Settings.", 403);
+  recentWrites.set(p, Date.now());
   await writeText(p, content);
   rebuild().catch(() => {});
+  broadcast({ t: "changed", path: p, source: src, label });
   const counted = await extras.recordSave(p, before, content).catch(() => false);
   const sync = await git.afterSave(p, label || p, counted ? [extras.progressFile()] : []).catch((e) => ({ ok: false, action: "error", message: String(e?.message ?? e) }));
   return c.json({ ok: true, words: (content.match(/\S+/g) ?? []).length, sync });
@@ -65,14 +98,18 @@ api.get("/fingerprint", async (c) => {
 api.get("/outline", async (c) => c.json(await data.outline()));
 api.get("/locked", async (c) => c.json(await data.lockedNumbers()));
 api.get("/meta/chapters", async (c) => c.json(await data.getChaptersMeta()));
-const commitData = (file: string, what: string) => git.autoCommitPaths([file], `studio: ${what}`).catch(() => null);
-api.put("/meta/chapters", async (c) => { await data.putChaptersMeta(await c.req.json()); commitData("studio/chapters.json", "board"); return c.json({ ok: true }); });
-api.patch("/meta/chapters/:id", async (c) => { const m = await data.patchChapterMeta(c.req.param("id"), await c.req.json()); commitData("studio/chapters.json", "board"); return c.json(m); });
+const commitData = (file: string, what: string, c?: any) => {
+  recentWrites.set(file, Date.now());
+  broadcast({ t: "data", key: file.replace(/^studio\/|\.json$/g, ""), source: c ? sourceOf(c) : "studio" });
+  return git.autoCommitPaths([file], `studio: ${what}`).catch(() => null);
+};
+api.put("/meta/chapters", async (c) => { await data.putChaptersMeta(await c.req.json()); commitData("studio/chapters.json", "board", c); return c.json({ ok: true }); });
+api.patch("/meta/chapters/:id", async (c) => { const m = await data.patchChapterMeta(c.req.param("id"), await c.req.json()); commitData("studio/chapters.json", "board", c); return c.json(m); });
 api.get("/knowledge", async (c) => c.json(await data.getKnowledge()));
-api.put("/knowledge", async (c) => { await data.putKnowledge(await c.req.json()); commitData("studio/knowledge.json", "who knows what"); return c.json({ ok: true }); });
+api.put("/knowledge", async (c) => { await data.putKnowledge(await c.req.json()); commitData("studio/knowledge.json", "who knows what", c); return c.json({ ok: true }); });
 api.get("/knowledge/flags", async (c) => c.json(await data.knowledgeFlags()));
 api.get("/ledger", async (c) => c.json(await data.getLedger()));
-api.put("/ledger", async (c) => { await data.putLedger(await c.req.json()); commitData("studio/ledger.json", "ledger"); return c.json({ ok: true }); });
+api.put("/ledger", async (c) => { await data.putLedger(await c.req.json()); commitData("studio/ledger.json", "ledger", c); return c.json({ ok: true }); });
 api.post("/chapters/create", async (c) => {
   const { number, title, pov } = await c.req.json<{ number: number; title: string; pov: string }>();
   const r = await data.createChapter(number, title, pov);
@@ -90,7 +127,7 @@ api.post("/chapters/reorder", async (c) => {
 });
 
 // ---- settings ----
-api.get("/settings", async (c) => c.json({ ...(await getSettings()), models: MODELS, ttsModels: TTS_MODELS }));
+api.get("/settings", async (c) => c.json({ ...(await getSettings()), models: MODELS, ttsModels: TTS_MODELS, mcp: { command: process.execPath, args: [path.resolve(import.meta.dir, "..", "mcp.ts")] } }));
 api.put("/settings", async (c) => c.json(await putSettings(await c.req.json())));
 
 // ---- claude (streams newline-delimited JSON events) ----
@@ -103,11 +140,24 @@ api.post("/claude", async (c) => {
   });
 });
 
+// ---- live events (server-sent) ----
+api.get("/events", (c) => streamText(c, async (stream) => {
+  c.header("content-type", "text/event-stream"); c.header("cache-control", "no-cache");
+  let closed = false;
+  const send = (e: StudioEvent) => { if (!closed) stream.write(`data: ${JSON.stringify(e)}\n\n`).catch(() => {}); };
+  listeners.add(send);
+  send({ t: "hello" });
+  stream.onAbort(() => { closed = true; listeners.delete(send); });
+  while (!closed) { await stream.sleep(25_000); if (!closed) await stream.write(": ping\n\n").catch(() => { closed = true; }); }
+  listeners.delete(send);
+}));
+api.post("/ui/goto", async (c) => { const { path: p, line } = await c.req.json<{ path: string; line?: number }>(); broadcast({ t: "goto", path: p, line }); return c.json({ ok: true, windows: listeners.size }); });
+
 // ---- notes ----
 api.get("/notes", async (c) => c.json(await extras.listNotes()));
-api.post("/notes", async (c) => { const n = await extras.addNote(await c.req.json()); commitData("studio/notes.json", "notes"); return c.json(n); });
-api.patch("/notes/:id", async (c) => { const n = await extras.patchNote(c.req.param("id"), await c.req.json()); commitData("studio/notes.json", "notes"); return c.json(n); });
-api.delete("/notes/:id", async (c) => { await extras.deleteNote(c.req.param("id")); commitData("studio/notes.json", "notes"); return c.json({ ok: true }); });
+api.post("/notes", async (c) => { const n = await extras.addNote(await c.req.json()); commitData("studio/notes.json", "notes", c); return c.json(n); });
+api.patch("/notes/:id", async (c) => { const n = await extras.patchNote(c.req.param("id"), await c.req.json()); commitData("studio/notes.json", "notes", c); return c.json(n); });
+api.delete("/notes/:id", async (c) => { await extras.deleteNote(c.req.param("id")); commitData("studio/notes.json", "notes", c); return c.json({ ok: true }); });
 
 // ---- progress, map, numbers ----
 api.get("/progress", async (c) => c.json(await extras.progress((await getSettings()).dailyTarget)));

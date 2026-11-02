@@ -84,7 +84,7 @@ export type LedgerEntry = { day: number; value: number; note?: string };
 export type Resource = { id: string; label: string; unit: string; entries: LedgerEntry[] };
 export type Ledger = { resources: Resource[] };
 
-export type Settings = { hasKey: boolean; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean; hasElevenKey: boolean; voices: Record<string, string>; ttsModel: string; dailyTarget: number; authorName: string; bookTitle: string };
+export type Settings = { hasKey: boolean; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean; hasElevenKey: boolean; voices: Record<string, string>; ttsModel: string; dailyTarget: number; authorName: string; bookTitle: string; aiWrites: boolean };
 export type Conflict = { path: string; mine: string; theirs: string; base: string };
 export type SyncResult = { ok: boolean; action: "none" | "ff" | "merged" | "blocked" | "conflict" | "error" | "resolved" | "pushed" | "committed"; message: string; conflicts?: Conflict[] };
 export type SyncState = { lastPull: { at: number; result: SyncResult } | null; lastPush: { at: number; ok: boolean; message: string } | null; pushPending: boolean };
@@ -105,3 +105,5 @@ export type AiEvent =
   | { t: "step"; id: string; label: string; state: "running" | "done"; summary?: string; sources?: AiSource[] }
   | { t: "done"; ms: number; usage: { input: number; output: number; cached: number }; sources: AiSource[] }
   | { t: "error"; message: string };
+
+export type StudioEvent = { t: "changed"; path: string; source: "studio" | "mcp" | "disk"; label?: string } | { t: "data"; key: string; source: "studio" | "mcp" } | { t: "goto"; path: string; line?: number } | { t: "hello" };

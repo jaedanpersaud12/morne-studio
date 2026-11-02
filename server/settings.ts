@@ -9,6 +9,7 @@ type Stored = {
   autoCommit?: boolean; autoPush?: boolean; autoPull?: boolean;
   elevenLabsApiKey?: string; voices?: Record<string, string>; ttsModel?: string;
   dailyTarget?: number; authorName?: string; bookTitle?: string;
+  aiWrites?: boolean;
 };
 
 export const MODELS = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"];
@@ -37,6 +38,7 @@ export async function getSettings(): Promise<Settings> {
     dailyTarget: s.dailyTarget ?? 500,
     authorName: s.authorName ?? "",
     bookTitle: s.bookTitle ?? "Morne Bay",
+    aiWrites: s.aiWrites ?? true,
   };
 }
 export async function putSettings(patch: Partial<Stored>) {
@@ -45,7 +47,7 @@ export async function putSettings(patch: Partial<Stored>) {
   for (const k of ["anthropicApiKey", "elevenLabsApiKey"] as const) if (typeof patch[k] === "string") next[k] = patch[k]!.trim() || undefined;
   if (typeof patch.model === "string" && MODELS.includes(patch.model)) next.model = patch.model;
   if (typeof patch.ttsModel === "string" && TTS_MODELS.includes(patch.ttsModel)) next.ttsModel = patch.ttsModel;
-  for (const k of ["autoCommit", "autoPush", "autoPull"] as const) if (typeof patch[k] === "boolean") next[k] = patch[k];
+  for (const k of ["autoCommit", "autoPush", "autoPull", "aiWrites"] as const) if (typeof patch[k] === "boolean") next[k] = patch[k];
   if (typeof patch.dailyTarget === "number" && patch.dailyTarget > 0 && patch.dailyTarget < 100000) next.dailyTarget = Math.round(patch.dailyTarget);
   for (const k of ["authorName", "bookTitle"] as const) if (typeof patch[k] === "string") next[k] = patch[k]!.slice(0, 120);
   if (patch.voices && typeof patch.voices === "object") next.voices = { ...(s.voices ?? {}), ...patch.voices };
