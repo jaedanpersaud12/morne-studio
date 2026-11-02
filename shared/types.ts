@@ -64,3 +64,27 @@ export type GitStatus = {
   dirty: { status: string; path: string }[];
   last: { hash: string; subject: string; when: string } | null;
 };
+
+// ---------- studio data (lives in the book repo under studio/) ----------
+export type ChapterStatus = "idea" | "outline" | "draft" | "revised" | "done";
+export type ChapterExtra = { dayStart?: number | null; dayEnd?: number | null; beat?: string; turn?: string; endsWorse?: boolean | null; status?: ChapterStatus };
+export type StudioChapters = { chapters: Record<string, ChapterExtra> };
+
+export type Movement = { index: number; name: string; span: string; chapters: [number, number] | null };
+export type OutlineRow = { number: number; pov: string; title: string | null; beats: string; movementIndex: number };
+export type ParallelGrid = { columns: string[]; rows: { movement: string; cells: string[] }[] };
+export type Outline = { movements: Movement[]; rows: OutlineRow[]; grid: ParallelGrid | null };
+export type LockedNumber = { thing: string; value: string };
+
+export type Secret = { id: string; label: string; keywords: string[]; knows: Record<string, number>; note?: string };
+export type Knowledge = { characters: string[]; secrets: Secret[] };
+export type KnowledgeFlag = { chapter: string; number: number; pov: string; secret: string; line: number; text: string; keyword: string };
+
+export type LedgerEntry = { day: number; value: number; note?: string };
+export type Resource = { id: string; label: string; unit: string; entries: LedgerEntry[] };
+export type Ledger = { resources: Resource[] };
+
+export type Settings = { hasKey: boolean; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean };
+export type Conflict = { path: string; mine: string; theirs: string; base: string };
+export type SyncResult = { ok: boolean; action: "none" | "ff" | "merged" | "blocked" | "conflict" | "error" | "resolved" | "pushed" | "committed"; message: string; conflicts?: Conflict[] };
+export type SyncState = { lastPull: { at: number; result: SyncResult } | null; lastPush: { at: number; ok: boolean; message: string } | null; pushPending: boolean };

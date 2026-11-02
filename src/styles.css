@@ -105,3 +105,54 @@ mark { background: color-mix(in oklab, var(--accent) 28%, transparent); color: v
 .kind-chapter { color: var(--accent); }
 /* tic highlight in the editor */
 .tic-hit { background: color-mix(in oklab, var(--del) 22%, transparent); border-radius: 2px; box-shadow: 0 1px 0 color-mix(in oklab, var(--del) 60%, transparent); }
+
+/* ---- forms ---- */
+.field { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; outline: none; color: var(--fg); min-width: 0; transition: border-color 120ms ease; }
+.field::placeholder { color: var(--muted); opacity: .8; }
+.field:focus, .field:focus-visible { border-color: var(--accent); outline: none; }
+select.field { padding-right: 4px; }
+input[type="number"].field { -moz-appearance: textfield; }
+input[type="number"].field::-webkit-inner-spin-button { opacity: .4; }
+
+/* ---- board ---- */
+.card { transition: box-shadow 120ms ease, opacity 120ms ease; }
+.card[draggable="true"] { cursor: grab; }
+.card[draggable="true"]:active { cursor: grabbing; }
+.card-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.card textarea.field, .card input.field { background: transparent; border-color: transparent; padding-left: 4px; padding-right: 4px; margin-left: -4px; }
+@media (hover: hover) { .card:hover textarea.field, .card:hover input.field { border-color: var(--line); } }
+.card textarea.field:focus, .card input.field:focus { border-color: var(--accent); background: var(--bg); }
+
+/* ---- knowledge matrix ---- */
+.cell { width: 48px; height: 28px; text-align: center; border-radius: 6px; background: transparent; border: 1px solid var(--line); color: var(--fg); outline: none; font-size: 0.8125rem; transition: background-color 120ms ease, border-color 120ms ease; }
+.cell:focus { border-color: var(--accent); }
+.cell::placeholder { color: var(--muted); }
+.cell-known { background: color-mix(in oklab, var(--accent) 26%, transparent); border-color: color-mix(in oklab, var(--accent) 55%, transparent); font-weight: 600; }
+.cell-later { background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in oklab, var(--fg) 8%, transparent) 4px 6px); color: var(--fg-dim); }
+.cell-swatch { display: inline-block; width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--line); }
+.cell::-webkit-inner-spin-button { display: none; }
+.cell { -moz-appearance: textfield; }
+
+/* ---- timeline ---- */
+.ch-chip { font-size: 0.75rem; line-height: 1.3; padding: 3px 7px; border-radius: 5px; background: color-mix(in oklab, var(--pov) 22%, var(--panel)); box-shadow: inset 2px 0 0 var(--pov); text-align: left; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-chip-planned { background: transparent; box-shadow: inset 0 0 0 1px var(--line), inset 2px 0 0 color-mix(in oklab, var(--pov) 60%, transparent); color: var(--fg-dim); cursor: default; }
+.day-bar { color: var(--fg); }
+@media (hover: hover) { .day-bar:hover, .ch-chip:not(:disabled):hover { filter: brightness(1.15); } }
+
+/* ---- modals ---- */
+.modal { background: var(--panel); color: var(--fg); border: 1px solid transparent; border-radius: 12px; padding: 0; box-shadow: 0 0 0 1px var(--line), 0 24px 64px rgba(0,0,0,.5); margin: auto; }
+.modal::backdrop { background: rgba(0,0,0,.55); }
+@media (prefers-reduced-motion: no-preference) {
+  .modal[open] { animation: modal-in var(--dur-enter) var(--ease-out) both; }
+  @keyframes modal-in { from { opacity: 0; transform: scale(0.97); } }
+}
+.conflict-on { background: color-mix(in oklab, var(--accent) 14%, var(--bg)); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.conflict-off { background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); color: var(--fg-dim); }
+
+/* ---- claude ---- */
+.caret { color: var(--accent); margin-left: 1px; }
+@media (prefers-reduced-motion: no-preference) { .caret { animation: blink 1s steps(2) infinite; } @keyframes blink { 50% { opacity: 0; } } }
+.field.day::-webkit-inner-spin-button, .field.day::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.field.day { -moz-appearance: textfield; padding-left: 2px; padding-right: 2px; }
+/* card fields grow with their text (Chromium/Edge 123+); falls back to the rows attribute elsewhere */
+.card textarea.field { field-sizing: content; min-height: 2lh; max-height: 8lh; }

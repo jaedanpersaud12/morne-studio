@@ -11,6 +11,7 @@ import { api } from "../api";
 import { useStore } from "../store";
 import type { Entity } from "../../shared/types";
 import { TICS, ticRegex } from "../../shared/tics";
+import { setEditorView } from "../editorBridge";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -96,20 +97,27 @@ export default function Editor() {
   const entComp = useMemo(() => new Compartment(), []);
   const ticComp = useMemo(() => new Compartment(), []);
   const qc = useQueryClient();
-  const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say, highlightTic } = useStore();
+  const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say, highlightTic, setSelection } = useStore();
+  const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree });
+  const label = (() => { const c = tree?.chapters.find((x) => openPath === `chapters/${x.id}/LATEST.md`); return c ? `ch ${c.number} ${c.title}` : openPath ?? ""; })();
+  const labelRef = useRef(label); labelRef.current = label;
   const { data: file } = useQuery({ queryKey: ["file", openPath], queryFn: () => api.file(openPath!), enabled: !!openPath, staleTime: Infinity });
   const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities });
 
   const save = async () => {
     const v = view.current; if (!v || !openPath) return;
     const content = v.state.doc.toString();
-    const r = await api.save(openPath, content);
+    let r;
+    try { r = await api.save(openPath, content, labelRef.current); }
+    catch (e: any) { say(`Save failed · ${e.message}`); return; }
     setDirty(false);
     qc.setQueryData(["file", openPath], { path: openPath, content });
     qc.invalidateQueries({ queryKey: ["tree"] });
     qc.invalidateQueries({ queryKey: ["fingerprint", openPath] });
     qc.invalidateQueries({ queryKey: ["git"] });
-    say(`Saved · ${r.words.toLocaleString()} words`);
+    qc.invalidateQueries({ queryKey: ["flags"] });
+    const sync = r.sync && !r.sync.ok ? ` · ${r.sync.message}` : r.sync?.ok ? " · committed" : "";
+    say(`Saved · ${r.words.toLocaleString()} words${sync}`);
   };
   const saveRef = useRef(save); saveRef.current = save;
 
@@ -126,7 +134,16 @@ export default function Editor() {
         keymap.of([{ key: "Mod-s", run: () => { saveRef.current(); return true; } }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
         entComp.of(entityExtension(entities, setEntity)),
         ticComp.of(ticExtension(highlightTic)),
-        EditorView.updateListener.of((u) => { if (u.docChanged) setDirty(true); }),
+        EditorView.updateListener.of((u) => {
+          if (u.docChanged) setDirty(true);
+          if (u.selectionSet || u.docChanged) {
+            const sel = u.state.selection.main;
+            if (sel.empty) { setSelection(null); return; }
+            const a = u.state.doc.lineAt(sel.from), b = u.state.doc.lineAt(sel.to);
+            const ctxFrom = u.state.doc.line(Math.max(1, a.number - 6)).from, ctxTo = u.state.doc.line(Math.min(u.state.doc.lines, b.number + 6)).to;
+            setSelection({ from: sel.from, to: sel.to, text: u.state.sliceDoc(sel.from, sel.to), context: u.state.sliceDoc(ctxFrom, ctxTo) });
+          }
+        }),
         EditorView.theme({
           "&": { height: "100%", fontSize: "17px" },
           ".cm-scroller": { overflow: "auto", overscrollBehavior: "contain", fontFamily: "var(--font-prose)", lineHeight: "1.75", padding: "2.5rem 0 40vh" },
@@ -140,12 +157,24 @@ export default function Editor() {
       ],
     });
     view.current = new EditorView({ state, parent: host.current });
+    setEditorView(view.current);
     setDirty(false);
-    return () => { view.current?.destroy(); view.current = null; };
+    return () => { view.current?.destroy(); view.current = null; setEditorView(null); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file?.path, file?.content === undefined]);
 
   useEffect(() => { view.current?.dispatch({ effects: ticComp.reconfigure(ticExtension(highlightTic)) }); }, [highlightTic, ticComp]);
+
+  // the file changed underneath us (pull from the other machine, Claude replace elsewhere): reload if clean, warn if not
+  useEffect(() => {
+    const v = view.current; if (!v || !file) return;
+    const cur = v.state.doc.toString();
+    if (cur === file.content) return;
+    if (useStore.getState().dirty) { say("This file changed on your other machine. Save keeps your version; reopen to load theirs."); return; }
+    const pos = Math.min(v.state.selection.main.head, file.content.length);
+    v.dispatch({ changes: { from: 0, to: cur.length, insert: file.content }, selection: { anchor: pos } });
+    setDirty(false);
+  }, [file?.content, say, setDirty]);
   // swap entity extension when entities load/change
   useEffect(() => { view.current?.dispatch({ effects: entComp.reconfigure(entityExtension(entities, setEntity)) }); }, [entities, entComp, setEntity]);
 

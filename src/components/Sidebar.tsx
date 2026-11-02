@@ -1,39 +1,46 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import { useStore } from "../store";
+import { useStore, goTo } from "../store";
+
+
 
 export default function Sidebar() {
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree, refetchInterval: 10000 });
-  const { openPath, setOpenPath, setJumpLine, dirty } = useStore();
+  const { openPath, view, setView, setSettingsOpen } = useStore();
+  const { data: git } = useQuery({ queryKey: ["git"], queryFn: api.git.status, refetchInterval: 8000 });
   const [q, setQ] = useState("");
   const [showBible, setShowBible] = useState(false);
   const { data: hits = [] } = useQuery({ queryKey: ["search", q], queryFn: () => api.search(q), enabled: q.trim().length > 1 });
 
-  const open = (p: string, line?: number) => {
-    if (dirty && openPath !== p && !confirm("Unsaved changes. Leave anyway?")) return;
-    setOpenPath(p);
-    if (line) setTimeout(() => setJumpLine(line), 50);
-  };
+  const open = (p: string, line?: number) => goTo(p, line);
+  const syncDot = !git ? null : git.behind > 0 || git.sync.lastPush?.ok === false ? "var(--del)" : git.ahead > 0 || git.dirty.some((d) => d.status !== "??") ? "var(--accent)" : "var(--add)";
+  const syncLabel = !git ? "" : git.behind > 0 ? `${git.behind} to pull` : git.sync.lastPush?.ok === false ? "push failed" : git.ahead > 0 ? `${git.ahead} to push` : "in sync";
 
   const total = tree?.chapters.reduce((n, c) => n + c.words, 0) ?? 0;
 
   return (
     <aside className="h-full min-h-0 flex flex-col bg-[var(--panel)] border-r border-[var(--line)]">
-      <div className="px-4 pt-4 pb-3">
-        <div className="font-semibold tracking-tight">Morne Bay</div>
-        <div className="text-xs text-[var(--muted)]">{tree ? `${tree.chapters.length} chapters · ${total.toLocaleString()} words` : "…"}</div>
+      <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold tracking-tight">Morne Bay</div>
+          <div className="text-xs text-[var(--muted)] num">{tree ? `${tree.chapters.length} chapters · ${total.toLocaleString()} words` : "…"}</div>
+          {syncDot && <button onClick={() => { setView("write"); useStore.getState().setPanel("git"); }} className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5 hover:text-[var(--fg)]"><span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: syncDot }} aria-hidden />{syncLabel}</button>}
+        </div>
+        <button aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)} className="btn px-1.5 py-1 shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
       <div className="px-3 pb-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search everything…"
-          className="w-full rounded-md bg-[var(--bg)] border border-[var(--line)] px-2.5 py-1.5 text-sm outline-none focus:border-[var(--accent)]" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search everything…" aria-label="Search the book and bible"
+          className="field w-full px-2.5 py-1.5 text-sm" />
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4 text-sm">
         {q.trim().length > 1 ? (
           <div className="space-y-1 px-1">
             <div className="text-xs text-[var(--muted)] px-1 py-1">{hits.length} hits</div>
             {hits.map((h, i) => (
-              <button key={i} onClick={() => open(h.file, h.line)} className="block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
+              <button key={i} onClick={() => open(h.file, h.line)} className="row block w-full text-left rounded-md px-2 py-1.5 hover:bg-[var(--hover)]">
                 <div className="text-xs text-[var(--muted)]"><span className={`kind kind-${h.kind}`}>{h.kind === "chapter" ? "ch" : "bible"}</span> {h.title.replace(/^\d+\.\s*/, "")} · L{h.line}</div>
                 <div className="line-clamp-3 text-[13px] leading-snug">{renderMarks(h.text)}</div>
               </button>
@@ -43,18 +50,18 @@ export default function Sidebar() {
           <>
             <Section label="Chapters">
               {tree?.chapters.map((c) => (
-                <Row key={c.id} active={openPath === `chapters/${c.id}/LATEST.md`} onClick={() => open(`chapters/${c.id}/LATEST.md`)}
+                <Row key={c.id} active={view === "write" && openPath === `chapters/${c.id}/LATEST.md`} onClick={() => open(`chapters/${c.id}/LATEST.md`)}
                   left={<><span className="text-[var(--muted)] num w-5 inline-block">{c.number}</span>{c.title}</>}
                   right={<span className="flex items-center gap-2"><span className="pov" data-pov={c.pov ?? ""}>{c.pov ?? "—"}</span><span className="num">{(c.words / 1000).toFixed(1)}k</span></span>} />
               ))}
             </Section>
             <Section label="Bible" collapsed={!showBible} onToggle={() => setShowBible((s) => !s)}>
               {tree?.bible.map((b) => (
-                <Row key={b.path} active={openPath === b.path} onClick={() => open(b.path)}
+                <Row key={b.path} active={view === "write" && openPath === b.path} onClick={() => open(b.path)}
                   left={<span className="truncate" title={b.title}>{b.title.replace(/^\d+\.\s*/, "")}</span>} right={<span className="text-[var(--muted)] text-xs">{b.path.includes("/cast/") ? "cast" : b.path.match(/bible\/(\d+)/)?.[1] ?? ""}</span>} />
               ))}
               {tree?.other.map((b) => (
-                <Row key={b.path} active={openPath === b.path} onClick={() => open(b.path)} left={<span className="truncate">{b.path}</span>} right={null} />
+                <Row key={b.path} active={view === "write" && openPath === b.path} onClick={() => open(b.path)} left={<span className="truncate">{b.path}</span>} right={null} />
               ))}
             </Section>
           </>

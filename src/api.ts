@@ -1,30 +1,59 @@
-import type { Tree, Entity, Backlink, SearchHit, VersionInfo, Fingerprint, GitStatus } from "../shared/types";
+import type { Tree, Entity, Backlink, SearchHit, VersionInfo, Fingerprint, GitStatus, Outline, LockedNumber, StudioChapters, Knowledge, KnowledgeFlag, Ledger, Settings, SyncResult, SyncState } from "../shared/types";
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { headers: { "content-type": "application/json" }, ...init });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  if (!r.ok) {
+    const t = await r.text();
+    let msg = t; try { msg = JSON.parse(t).error ?? t; } catch {}
+    throw new Error(msg);
+  }
   return r.json();
 }
 const q = (o: Record<string, string>) => "?" + new URLSearchParams(o).toString();
+const put = (body: unknown) => ({ method: "PUT", body: JSON.stringify(body) });
+const post = (body?: unknown) => ({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 export const api = {
   tree: () => j<Tree>("/api/tree"),
   entities: () => j<Entity[]>("/api/entities"),
   file: (path: string) => j<{ path: string; content: string }>("/api/file" + q({ path })),
-  save: (path: string, content: string) => j<{ ok: true; words: number }>("/api/file", { method: "PUT", body: JSON.stringify({ path, content }) }),
+  save: (path: string, content: string, label?: string) => j<{ ok: true; words: number; sync: SyncResult | null }>("/api/file", put({ path, content, label })),
   search: (query: string) => j<SearchHit[]>("/api/search" + q({ q: query })),
   backlinks: (id: string) => j<Backlink[]>(`/api/backlinks/${id}`),
   presence: () => j<{ chapters: string[]; rows: { id: string; short: string; counts: number[] }[] }>("/api/presence"),
   versions: (chapter: string) => j<VersionInfo[]>(`/api/versions/${chapter}`),
-  snapshot: (chapter: string, note: string) => j<{ file: string; label: string }>("/api/snapshot", { method: "POST", body: JSON.stringify({ chapter, note }) }),
-  build: () => j<{ words: number; chapters: number }>("/api/build", { method: "POST" }),
+  snapshot: (chapter: string, note: string) => j<{ file: string; label: string }>("/api/snapshot", post({ chapter, note })),
+  build: () => j<{ words: number; chapters: number }>("/api/build", post()),
   fingerprint: (path: string) => j<Fingerprint>("/api/fingerprint" + q({ path })),
+  outline: () => j<Outline>("/api/outline"),
+  locked: () => j<LockedNumber[]>("/api/locked"),
+  chaptersMeta: () => j<StudioChapters>("/api/meta/chapters"),
+  putChaptersMeta: (d: StudioChapters) => j<{ ok: true }>("/api/meta/chapters", put(d)),
+  patchChapterMeta: (id: string, patch: Record<string, unknown>) => j<StudioChapters>(`/api/meta/chapters/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  knowledge: () => j<Knowledge>("/api/knowledge"),
+  putKnowledge: (d: Knowledge) => j<{ ok: true }>("/api/knowledge", put(d)),
+  knowledgeFlags: () => j<KnowledgeFlag[]>("/api/knowledge/flags"),
+  ledger: () => j<Ledger>("/api/ledger"),
+  putLedger: (d: Ledger) => j<{ ok: true }>("/api/ledger", put(d)),
+  createChapter: (number: number, title: string, pov: string) => j<{ id: string }>("/api/chapters/create", post({ number, title, pov })),
+  reorder: (ids: string[]) => j<{ changed: number }>("/api/chapters/reorder", post({ ids })),
+  settings: () => j<Settings & { models: string[] }>("/api/settings"),
+  putSettings: (s: Partial<{ anthropicApiKey: string; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean }>) => j<Settings>("/api/settings", put(s)),
   git: {
-    status: () => j<GitStatus>("/api/git/status"),
-    commit: (message: string) => j<{ ok: boolean; out: string }>("/api/git/commit", { method: "POST", body: JSON.stringify({ message }) }),
-    pull: () => j<{ ok: boolean; out: string }>("/api/git/pull", { method: "POST" }),
-    push: () => j<{ ok: boolean; out: string }>("/api/git/push", { method: "POST" }),
+    status: () => j<GitStatus & { sync: SyncState }>("/api/git/status"),
+    commit: (message: string) => j<{ ok: boolean; out: string }>("/api/git/commit", post({ message })),
+    pull: () => j<SyncResult>("/api/git/pull", post()),
+    push: () => j<{ ok: boolean; out: string }>("/api/git/push", post()),
+    resolve: (resolutions: Record<string, string>) => j<SyncResult>("/api/git/resolve", post({ resolutions })),
     log: (path: string) => j<{ hash: string; when: string; subject: string }[]>("/api/git/log" + q({ path })),
     show: (hash: string, path: string) => j<{ content: string }>("/api/git/show" + q({ hash, path })),
+  },
+  /** Streams plain text; calls onText with each chunk. Returns the full text. */
+  claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string }, onText: (t: string) => void, signal?: AbortSignal) => {
+    const r = await fetch("/api/claude", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
+    if (!r.ok || !r.body) throw new Error(await r.text());
+    const reader = r.body.getReader(); const dec = new TextDecoder(); let all = "";
+    for (;;) { const { done, value } = await reader.read(); if (done) break; const t = dec.decode(value, { stream: true }); all += t; onText(t); }
+    return all;
   },
 };
