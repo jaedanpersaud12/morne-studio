@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useStore, type Panel } from "../store";
 import { TICS } from "../../shared/tics";
 import ClaudePanel from "./ClaudePanel";
+import NotesPanel from "./NotesPanel";
 import { goTo } from "../store";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -15,25 +16,28 @@ function hl(text: string, aliases: string[]) {
 }
 
 const TABS: { id: Panel; label: string }[] = [
-  { id: "claude", label: "Claude" }, { id: "cast", label: "Cast" },
-  { id: "versions", label: "Versions" }, { id: "stats", label: "Tics" }, { id: "git", label: "Sync" },
+  { id: "claude", label: "Claude" }, { id: "notes", label: "Notes" }, { id: "cast", label: "Cast" },
+  { id: "stats", label: "Tics" }, { id: "history", label: "History" },
 ];
 
 export default function RightPanel() {
   const { panel: raw, setPanel } = useStore();
-  const panel = raw === "entity" || raw === "backlinks" ? "cast" : raw;
+  const panel = raw === "entity" || raw === "backlinks" ? "cast" : raw === "versions" || raw === "git" ? "history" : raw;
+  const { data: notes = [] } = useQuery({ queryKey: ["notes"], queryFn: api.notes });
+  const openPath = useStore((s) => s.openPath);
+  const openNotes = notes.filter((n) => !n.resolved && n.file === openPath).length;
   return (
     <aside className="h-full min-h-0 flex flex-col bg-[var(--panel)] border-l border-[var(--line)]">
       <div role="tablist" className="flex gap-0.5 px-2 pt-2 border-b border-[var(--line)] overflow-x-auto shrink-0">
         {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={panel === t.id} onClick={() => setPanel(t.id)} className={`tab shrink-0 px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}</button>
+          <button key={t.id} role="tab" aria-selected={panel === t.id} onClick={() => setPanel(t.id)} className={`tab shrink-0 px-2.5 py-1.5 text-xs rounded-t-md ${panel === t.id ? "bg-[var(--bg)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{t.label}{t.id === "notes" && openNotes > 0 && <span className="ml-1 num text-[var(--accent)]">{openNotes}</span>}</button>
         ))}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 text-sm">
         {panel === "cast" && <CastTab />}
-        {panel === "versions" && <Versions />}
+        {panel === "history" && <History />}
+        {panel === "notes" && <NotesPanel />}
         {panel === "stats" && <Stats />}
-        {panel === "git" && <Git />}
         {panel === "claude" && <ClaudePanel />}
       </div>
     </aside>
@@ -142,6 +146,24 @@ function Backlinks() {
       <div className="font-medium">{e.name} <span className="text-[var(--muted)] font-normal">· {chapters.length} in chapters, {bible.length} in bible</span></div>
       <List items={chapters} />
       {bible.length > 0 && <><div className="label">Bible</div><List items={bible} /></>}
+    </div>
+  );
+}
+
+function History() {
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3"><h3 className="label">Sync</h3><Git /></section>
+      <section className="space-y-3 pt-4 border-t border-[var(--line)]"><h3 className="label">Versions of this chapter</h3><Versions /></section>
+      <section className="space-y-2 pt-4 border-t border-[var(--line)]">
+        <h3 className="label">Export the book</h3>
+        <div className="flex flex-wrap gap-2">
+          <a className="btn" href="/api/export/epub" download>EPUB</a>
+          <a className="btn" href="/api/export/docx" download>Word (.docx)</a>
+          <a className="btn" href="/api/export/print" target="_blank" rel="noreferrer">PDF (print view)</a>
+        </div>
+        <p className="text-xs text-[var(--muted)]">All chapters in order, typographic quotes, scene breaks. PDF opens a 5.5 × 8.5 in print view: press Save as PDF. Title and author in Settings.</p>
+      </section>
     </div>
   );
 }

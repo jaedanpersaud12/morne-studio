@@ -12,6 +12,8 @@ import { useStore } from "../store";
 import type { Entity } from "../../shared/types";
 import { TICS, ticRegex } from "../../shared/tics";
 import { setEditorView } from "../editorBridge";
+import type { Note } from "../../shared/types";
+import { RangeSetBuilder } from "@codemirror/state";
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -79,6 +81,46 @@ function ticExtension(id: string | null) {
   return ViewPlugin.fromClass(class { decorations: DecorationSet; constructor(v: EditorView) { this.decorations = deco.createDeco(v); } update(u: ViewUpdate) { this.decorations = deco.updateDeco(u, this.decorations); } }, { decorations: (v) => v.decorations });
 }
 
+/** Find each note's quote in the doc (nearest to its stored line) and mark it. Click a mark to open the note. */
+function notesExtension(notes: Note[], onPick: (id: string) => void) {
+  if (!notes.length) return [];
+  const build = (v: EditorView) => {
+    const doc = v.state.doc.toString();
+    const found: { from: number; to: number; id: string; resolved: boolean }[] = [];
+    for (const n of notes) {
+      if (!n.quote) continue;
+      let best = -1, bestDist = Infinity, at = doc.indexOf(n.quote);
+      while (at >= 0) {
+        const d = Math.abs(v.state.doc.lineAt(at).number - n.line);
+        if (d < bestDist) { best = at; bestDist = d; }
+        at = doc.indexOf(n.quote, at + 1);
+      }
+      if (best >= 0) found.push({ from: best, to: best + n.quote.length, id: n.id, resolved: n.resolved });
+    }
+    found.sort((a, b) => a.from - b.from || a.to - b.to);
+    const b = new RangeSetBuilder<Decoration>();
+    let lastTo = -1;
+    for (const f of found) { if (f.from < lastTo) continue; b.add(f.from, f.to, Decoration.mark({ class: f.resolved ? "note-mark note-resolved" : "note-mark", attributes: { "data-note": f.id } })); lastTo = f.to; }
+    return b.finish();
+  };
+  return ViewPlugin.fromClass(class { decorations: DecorationSet; constructor(v: EditorView) { this.decorations = build(v); } update(u: ViewUpdate) { if (u.docChanged) this.decorations = build(u.view); } }, {
+    decorations: (v) => v.decorations,
+    eventHandlers: { mousedown(ev) { const el = (ev.target as HTMLElement).closest?.("[data-note]") as HTMLElement | null; if (el && !(ev.metaKey || ev.ctrlKey)) { onPick(el.dataset.note!); } return false; } },
+  });
+}
+
+/** Paragraph being read aloud. */
+function readingExtension(line: number | null) {
+  if (!line) return [];
+  return EditorView.decorations.compute(["doc"], (state) => {
+    const b = new RangeSetBuilder<Decoration>();
+    if (line > state.doc.lines) return b.finish();
+    let l = line;
+    while (l <= state.doc.lines && state.doc.line(l).text.trim() !== "") { const ln = state.doc.line(l); b.add(ln.from, ln.from, Decoration.line({ class: "reading-line" })); l++; }
+    return b.finish();
+  });
+}
+
 const mdHighlight = HighlightStyle.define([
   { tag: tags.heading1, class: "md-h1" },
   { tag: tags.heading2, class: "md-h2" },
@@ -96,9 +138,15 @@ export default function Editor() {
   const view = useRef<EditorView | null>(null);
   const entComp = useMemo(() => new Compartment(), []);
   const ticComp = useMemo(() => new Compartment(), []);
+  const noteComp = useMemo(() => new Compartment(), []);
+  const readComp = useMemo(() => new Compartment(), []);
   const qc = useQueryClient();
   const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say, highlightTic, setSelection } = useStore();
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree });
+  const { data: allNotes = [] } = useQuery({ queryKey: ["notes"], queryFn: api.notes });
+  const notes = useMemo(() => allNotes.filter((n) => n.file === openPath), [allNotes, openPath]);
+  const setActiveNote = useStore((s) => s.setActiveNote);
+  const readingLine = useStore((s) => s.readingLine);
   const label = (() => { const c = tree?.chapters.find((x) => openPath === `chapters/${x.id}/LATEST.md`); return c ? `ch ${c.number} ${c.title}` : openPath ?? ""; })();
   const labelRef = useRef(label); labelRef.current = label;
   const { data: file } = useQuery({ queryKey: ["file", openPath], queryFn: () => api.file(openPath!), enabled: !!openPath, staleTime: Infinity });
@@ -116,6 +164,8 @@ export default function Editor() {
     qc.invalidateQueries({ queryKey: ["fingerprint", openPath] });
     qc.invalidateQueries({ queryKey: ["git"] });
     qc.invalidateQueries({ queryKey: ["flags"] });
+    qc.invalidateQueries({ queryKey: ["progress"] });
+    qc.invalidateQueries({ queryKey: ["numbers"] });
     const sync = r.sync && !r.sync.ok ? ` · ${r.sync.message}` : r.sync?.ok ? " · committed" : "";
     say(`Saved · ${r.words.toLocaleString()} words${sync}`);
   };
@@ -131,9 +181,15 @@ export default function Editor() {
         history(), drawSelection(), highlightActiveLine(), highlightSelectionMatches(),
         markdown(), syntaxHighlighting(mdHighlight),
         EditorView.lineWrapping,
-        keymap.of([{ key: "Mod-s", run: () => { saveRef.current(); return true; } }, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
+        keymap.of([
+          { key: "Mod-s", run: () => { saveRef.current(); return true; } },
+          { key: "Mod-Alt-m", run: () => { const st = useStore.getState(); if (st.selection?.text.trim()) { st.setPanel("notes"); setTimeout(() => document.getElementById("note-new")?.focus(), 50); } else st.say("Select the words the note is about."); return true; } },
+          ...defaultKeymap, ...historyKeymap, ...searchKeymap,
+        ]),
         entComp.of(entityExtension(entities, setEntity)),
         ticComp.of(ticExtension(highlightTic)),
+        noteComp.of(notesExtension(notes, setActiveNote)),
+        readComp.of(readingExtension(readingLine)),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) setDirty(true);
           if (u.selectionSet || u.docChanged) {
@@ -164,6 +220,13 @@ export default function Editor() {
   }, [file?.path, file?.content === undefined]);
 
   useEffect(() => { view.current?.dispatch({ effects: ticComp.reconfigure(ticExtension(highlightTic)) }); }, [highlightTic, ticComp]);
+
+  useEffect(() => { view.current?.dispatch({ effects: noteComp.reconfigure(notesExtension(notes, setActiveNote)) }); }, [notes, noteComp, setActiveNote]);
+  useEffect(() => {
+    const v = view.current; if (!v) return;
+    v.dispatch({ effects: readComp.reconfigure(readingExtension(readingLine)) });
+    if (readingLine && readingLine <= v.state.doc.lines) v.dispatch({ effects: EditorView.scrollIntoView(v.state.doc.line(readingLine).from, { y: "center" }) });
+  }, [readingLine, readComp]);
 
   // the file changed underneath us (pull from the other machine, Claude replace elsewhere): reload if clean, warn if not
   useEffect(() => {

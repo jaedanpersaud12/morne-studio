@@ -76,10 +76,11 @@ export function schedulePush(ms = 45_000) {
 }
 
 /** After a save: commit that one file. Repeated saves of the same file within 15 minutes, not yet pushed, amend one commit. */
-export const afterSave = (relPath: string, label: string) => serial(async (): Promise<SyncResult | null> => {
+export const afterSave = (relPath: string, label: string, extra: string[] = []) => serial(async (): Promise<SyncResult | null> => {
   const s = await getSettings();
   if (!s.autoCommit) return null;
-  await git(["add", "--", relPath]);
+  const paths = [relPath, ...extra];
+  await git(["add", "--", ...paths]);
   if ((await git(["diff", "--cached", "--quiet", "--", relPath])).ok) return null;
   const msg = `studio: edit ${label}`;
   const head = await git(["log", "-1", "--format=%s%x09%ct"]);
@@ -87,7 +88,7 @@ export const afterSave = (relPath: string, label: string) => serial(async (): Pr
   let unpushed = true;
   if (await hasUpstream()) unpushed = !(await git(["merge-base", "--is-ancestor", "HEAD", "@{u}"])).ok;
   const amend = head.ok && subj === msg && unpushed && Date.now() / 1000 - Number(ct) < 900;
-  const r = await git(["commit", "-q", "--only", ...(amend ? ["--amend", "--no-edit"] : ["-m", msg]), "--", relPath]);
+  const r = await git(["commit", "-q", "--only", ...(amend ? ["--amend", "--no-edit"] : ["-m", msg]), "--", ...paths]);
   if (!r.ok) return { ok: false, action: "error", message: await identityHint(r.err || r.out) };
   if (s.autoPush) schedulePush();
   return { ok: true, action: "committed", message: amend ? "amended" : "committed" };

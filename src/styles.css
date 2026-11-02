@@ -156,3 +156,29 @@ input[type="number"].field::-webkit-inner-spin-button { opacity: .4; }
 .field.day { -moz-appearance: textfield; padding-left: 2px; padding-right: 2px; }
 /* card fields grow with their text (Chromium/Edge 123+); falls back to the rows attribute elsewhere */
 .card textarea.field { field-sizing: content; min-height: 2lh; max-height: 8lh; }
+
+/* ---- notes ---- */
+.note-mark { background: color-mix(in oklab, var(--accent) 16%, transparent); border-bottom: 2px solid color-mix(in oklab, var(--accent) 70%, transparent); cursor: pointer; }
+.note-resolved { background: transparent; border-bottom: 1px dashed var(--line); }
+.note-active { background: color-mix(in oklab, var(--accent) 10%, var(--bg)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent); }
+.note-body:focus { background: var(--bg); border-color: var(--accent); padding-left: 6px; }
+
+/* ---- read aloud ---- */
+.reading-line { background: color-mix(in oklab, var(--accent) 9%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* ---- popover ---- */
+.popover { box-shadow: 0 0 0 1px var(--line), 0 16px 40px rgba(0,0,0,.45); }
+@media (prefers-reduced-motion: no-preference) {
+  .popover { animation: pop-in var(--dur-tip) var(--ease-out) both; transform-origin: top right; }
+  @keyframes pop-in { from { opacity: 0; transform: scale(0.97); } }
+}
+
+/* ---- map ---- */
+.map-node-label { font: 600 12px var(--font-ui); fill: var(--fg); pointer-events: none; }
+.map-idea-label { font: 12px var(--font-ui); fill: var(--fg-dim); pointer-events: none; }
+.map-edge-label { font: 12px var(--font-ui); fill: var(--fg); paint-order: stroke; stroke: var(--panel); stroke-width: 4px; pointer-events: none; }
+a.btn { display: inline-block; text-decoration: none; }
+
+svg [role="button"]:focus { outline: none; }
+svg [role="button"]:focus-visible circle { stroke-width: 4; }
+svg [role="button"]:focus-visible rect { fill: var(--accent); }

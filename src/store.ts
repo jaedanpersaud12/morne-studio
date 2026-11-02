@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { Conflict } from "../shared/types";
 
-export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude";
-export type View = "write" | "board" | "timeline" | "knowledge" | "ledger";
+export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude" | "notes" | "history";
+export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map";
 export type Selection = { from: number; to: number; text: string; context: string };
 
 type S = {
@@ -18,6 +18,8 @@ type S = {
   selection: Selection | null; setSelection: (s: Selection | null) => void;
   settingsOpen: boolean; setSettingsOpen: (o: boolean) => void;
   conflicts: Conflict[] | null; setConflicts: (c: Conflict[] | null) => void;
+  activeNote: string | null; setActiveNote: (id: string | null) => void;
+  readingLine: number | null; setReadingLine: (n: number | null) => void;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -30,7 +32,7 @@ export const useStore = create<S>((set, get) => ({
   setOpenPath: (p) => { set({ openPath: p, jumpLine: null, selection: null, view: "write" }); persist({ openPath: p, view: "write" }); },
   dirty: false, setDirty: (dirty) => set({ dirty }),
   entityId: null, setEntity: (id) => set({ entityId: id, panel: id ? "cast" : get().panel, view: "write" }),
-  panel: (["entity", "backlinks"].includes(saved.panel) ? "cast" : saved.panel) ?? "cast", setPanel: (panel) => { set({ panel }); persist({ panel }); },
+  panel: (["entity", "backlinks"].includes(saved.panel) ? "cast" : ["versions", "git"].includes(saved.panel) ? "history" : saved.panel) ?? "cast", setPanel: (panel) => { set({ panel }); persist({ panel }); },
   jumpLine: null, setJumpLine: (jumpLine) => set({ jumpLine }),
   focus: false, toggleFocus: () => set({ focus: !get().focus }),
   toast: null,
@@ -39,6 +41,8 @@ export const useStore = create<S>((set, get) => ({
   selection: null, setSelection: (selection) => set({ selection }),
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
+  activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),
+  readingLine: null, setReadingLine: (readingLine) => set({ readingLine }),
 }));
 
 /** Jump to a line in a file from anywhere (board, knowledge flags, backlinks). */

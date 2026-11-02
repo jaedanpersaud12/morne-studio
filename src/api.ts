@@ -1,4 +1,4 @@
-import type { Tree, Entity, Backlink, SearchHit, VersionInfo, Fingerprint, GitStatus, Outline, LockedNumber, StudioChapters, Knowledge, KnowledgeFlag, Ledger, Settings, SyncResult, SyncState } from "../shared/types";
+import type { Note, Progress, GraphData, NumberHit, Tree, Entity, Backlink, SearchHit, VersionInfo, Fingerprint, GitStatus, Outline, LockedNumber, StudioChapters, Knowledge, KnowledgeFlag, Ledger, Settings, SyncResult, SyncState } from "../shared/types";
 
 async function j<T>(url: string, init?: RequestInit): Promise<T> {
   const r = await fetch(url, { headers: { "content-type": "application/json" }, ...init });
@@ -37,8 +37,21 @@ export const api = {
   putLedger: (d: Ledger) => j<{ ok: true }>("/api/ledger", put(d)),
   createChapter: (number: number, title: string, pov: string) => j<{ id: string }>("/api/chapters/create", post({ number, title, pov })),
   reorder: (ids: string[]) => j<{ changed: number }>("/api/chapters/reorder", post({ ids })),
-  settings: () => j<Settings & { models: string[] }>("/api/settings"),
-  putSettings: (s: Partial<{ anthropicApiKey: string; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean }>) => j<Settings>("/api/settings", put(s)),
+  settings: () => j<Settings & { models: string[]; ttsModels: string[] }>("/api/settings"),
+  putSettings: (s: Partial<{ anthropicApiKey: string; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean; elevenLabsApiKey: string; voices: Record<string, string>; ttsModel: string; dailyTarget: number; authorName: string; bookTitle: string }>) => j<Settings>("/api/settings", put(s)),
+  notes: () => j<Note[]>("/api/notes"),
+  addNote: (n: { file: string; quote: string; line: number; body: string }) => j<Note>("/api/notes", post(n)),
+  patchNote: (id: string, patch: Partial<Pick<Note, "body" | "resolved" | "line">>) => j<Note>(`/api/notes/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteNote: (id: string) => j<{ ok: true }>(`/api/notes/${id}`, { method: "DELETE" }),
+  progress: () => j<Progress>("/api/progress"),
+  graph: () => j<GraphData>("/api/graph"),
+  numbers: () => j<{ locked: { noun: string; values: number[]; source: string }[]; hits: NumberHit[] }>("/api/numbers"),
+  voices: () => j<{ voice_id: string; name: string }[]>("/api/tts/voices"),
+  tts: async (text: string, pov: string | null, signal?: AbortSignal) => {
+    const r = await fetch("/api/tts", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pov }), signal });
+    if (!r.ok) throw new Error(await r.text());
+    return r.blob();
+  },
   git: {
     status: () => j<GitStatus & { sync: SyncState }>("/api/git/status"),
     commit: (message: string) => j<{ ok: boolean; out: string }>("/api/git/commit", post({ message })),

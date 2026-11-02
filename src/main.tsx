@@ -10,3 +10,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={qc}><App /></QueryClientProvider>
   </React.StrictMode>,
 );
+
+// Installable app: only when served by the Studio server itself (production build on :3131), not the Vite dev server.
+if ("serviceWorker" in navigator && location.port === "3131") navigator.serviceWorker.register("/sw.js").catch(() => {});

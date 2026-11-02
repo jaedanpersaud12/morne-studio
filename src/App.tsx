@@ -8,11 +8,13 @@ import BoardView from "./views/BoardView";
 import TimelineView from "./views/TimelineView";
 import KnowledgeView from "./views/KnowledgeView";
 import LedgerView from "./views/LedgerView";
+import MapView from "./views/MapView";
+import { ProgressBadge, ReadAloud } from "./components/TopBarTools";
 import { useStore, type View } from "./store";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "write", label: "Write" }, { id: "board", label: "Board" }, { id: "timeline", label: "Timeline" },
-  { id: "knowledge", label: "Who knows" }, { id: "ledger", label: "Ledger" },
+  { id: "knowledge", label: "Who knows" }, { id: "ledger", label: "Ledger" }, { id: "map", label: "Map" },
 ];
 import { api } from "./api";
 
@@ -24,6 +26,8 @@ export default function App() {
   const ch = tree?.chapters.find((c) => openPath === `chapters/${c.id}/LATEST.md`);
   const title = ch ? `${ch.number}. ${ch.title}` : openPath?.split("/").pop() ?? "";
   const writing = view === "write";
+  const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities });
+  const povId = ch?.pov ? entities.find((e) => e.short === ch.pov || e.aliases.includes(ch.pov!))?.id ?? null : null;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -35,6 +39,7 @@ export default function App() {
       else if (e.key === "3") { e.preventDefault(); setView("timeline"); }
       else if (e.key === "4") { e.preventDefault(); setView("knowledge"); }
       else if (e.key === "5") { e.preventDefault(); setView("ledger"); }
+      else if (e.key === "6") { e.preventDefault(); setView("map"); }
     };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [toggleFocus, setPanel, setView]);
@@ -59,13 +64,17 @@ export default function App() {
                 className={`tab rounded-md px-2.5 py-1 ${view === v.id ? "bg-[var(--active)] text-[var(--fg)]" : "text-[var(--muted)] hover:text-[var(--fg)]"}`}>{v.label}</button>
             ))}
           </nav>
+          <div className="flex items-center gap-3 min-w-0 num text-[var(--muted)]">
           {writing && (
-            <div className="flex items-center gap-3 min-w-0 num text-[var(--muted)]">
+            <>
               <span className="truncate text-[var(--fg-dim)]">{title}{dirty && <span className="text-[var(--accent)]"> · unsaved</span>}</span>
               {ch && <span className="shrink-0 hidden min-[1200px]:inline">{ch.pov ? `${ch.pov} POV · ` : ""}{ch.words.toLocaleString()} w</span>}
+              <ReadAloud pov={povId} />
               <button onClick={toggleFocus} className="shrink-0 hover:text-[var(--fg)]" title={`${MOD}\\`}>{focus ? "exit focus" : "focus"}</button>
-            </div>
+            </>
           )}
+            <ProgressBadge />
+          </div>
         </header>
         {/* the editor stays mounted across views so unsaved text and undo history survive a trip to the board */}
         <div className={writing ? "flex-1 min-h-0 overflow-hidden" : "hidden"}><Editor /></div>
@@ -75,6 +84,7 @@ export default function App() {
             {view === "timeline" && <TimelineView />}
             {view === "knowledge" && <KnowledgeView />}
             {view === "ledger" && <LedgerView />}
+            {view === "map" && <MapView />}
           </div>
         )}
         {toast && <div role="status" className="toast absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-[var(--fg)] text-[var(--bg)] text-xs px-3 py-1.5 shadow max-w-[80%] truncate">{toast}</div>}

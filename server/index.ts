@@ -8,7 +8,11 @@ import { search, backlinks, rebuild, presence } from "./index-db";
 import { fingerprint } from "./stats";
 import * as git from "./git";
 import * as data from "./studio-data";
-import { getSettings, putSettings, MODELS } from "./settings";
+import { getSettings, putSettings, MODELS, TTS_MODELS } from "./settings";
+import * as extras from "./extras";
+import * as exporter from "./export";
+import * as tts from "./tts";
+import { existsSync as fileExists } from "node:fs";
 import { run as runClaude, type ClaudeAction } from "./claude";
 
 const app = new Hono();
@@ -29,9 +33,12 @@ api.put("/file", async (c) => {
   const { path: p, content, label } = await c.req.json<{ path: string; content: string; label?: string }>();
   if (!p || typeof content !== "string") return c.text("path and content required", 400);
   if (!p.endsWith(".md")) return c.text("only .md files", 400);
+  let before: string | null = null;
+  try { before = await readText(p); } catch {}
   await writeText(p, content);
   rebuild().catch(() => {});
-  const sync = await git.afterSave(p, label || p).catch((e) => ({ ok: false, action: "error", message: String(e?.message ?? e) }));
+  const counted = await extras.recordSave(p, before, content).catch(() => false);
+  const sync = await git.afterSave(p, label || p, counted ? [extras.progressFile()] : []).catch((e) => ({ ok: false, action: "error", message: String(e?.message ?? e) }));
   return c.json({ ok: true, words: (content.match(/\S+/g) ?? []).length, sync });
 });
 
@@ -77,12 +84,13 @@ api.post("/chapters/reorder", async (c) => {
   const { ids } = await c.req.json<{ ids: string[] }>();
   const r = await data.reorder(ids);
   await rebuild();
+  if (r.changed) await extras.renameNoteFiles(Object.fromEntries(r.plan.filter((x) => x.from !== x.to).map((x) => [`chapters/${x.from}/LATEST.md`, `chapters/${x.to}/LATEST.md`])));
   if (r.changed) await git.autoCommitPaths(["chapters", "studio"], "studio: reorder chapters").catch(() => null);
   return c.json(r);
 });
 
 // ---- settings ----
-api.get("/settings", async (c) => c.json({ ...(await getSettings()), models: MODELS }));
+api.get("/settings", async (c) => c.json({ ...(await getSettings()), models: MODELS, ttsModels: TTS_MODELS }));
 api.put("/settings", async (c) => c.json(await putSettings(await c.req.json())));
 
 // ---- claude (streams plain text) ----
@@ -96,6 +104,28 @@ api.post("/claude", async (c) => {
     }
   });
 });
+
+// ---- notes ----
+api.get("/notes", async (c) => c.json(await extras.listNotes()));
+api.post("/notes", async (c) => { const n = await extras.addNote(await c.req.json()); commitData("studio/notes.json", "notes"); return c.json(n); });
+api.patch("/notes/:id", async (c) => { const n = await extras.patchNote(c.req.param("id"), await c.req.json()); commitData("studio/notes.json", "notes"); return c.json(n); });
+api.delete("/notes/:id", async (c) => { await extras.deleteNote(c.req.param("id")); commitData("studio/notes.json", "notes"); return c.json({ ok: true }); });
+
+// ---- progress, map, numbers ----
+api.get("/progress", async (c) => c.json(await extras.progress((await getSettings()).dailyTarget)));
+api.get("/graph", async (c) => c.json(await extras.graph()));
+api.get("/numbers", async (c) => c.json(await extras.numberHits()));
+
+// ---- export ----
+const bookMeta = async () => { const s = await getSettings(); let author = s.authorName; if (!author) { const r = await git.git(["config", "user.name"]); author = r.out || "Author"; } return { title: s.bookTitle || "Morne Bay", author }; };
+const fileName = (title: string, ext: string) => `${title.replace(/[^\w -]+/g, "").trim().replace(/\s+/g, "-") || "book"}.${ext}`;
+api.get("/export/epub", async (c) => { const m = await bookMeta(); return new Response(new Blob([await exporter.epub(m.title, m.author) as BlobPart]), { headers: { "content-type": "application/epub+zip", "content-disposition": `attachment; filename="${fileName(m.title, "epub")}"` } }); });
+api.get("/export/docx", async (c) => { const m = await bookMeta(); return new Response(new Blob([await exporter.docx(m.title, m.author) as BlobPart]), { headers: { "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "content-disposition": `attachment; filename="${fileName(m.title, "docx")}"` } }); });
+api.get("/export/print", async (c) => { const m = await bookMeta(); return c.html(await exporter.printHtml(m.title, m.author)); });
+
+// ---- read-aloud ----
+api.get("/tts/voices", async (c) => c.json(await tts.voices()));
+api.post("/tts", async (c) => { const { text, pov } = await c.req.json<{ text: string; pov: string | null }>(); return tts.speak(text, pov); });
 
 // ---- git / sync ----
 api.get("/git/status", async (c) => c.json({ ...(await git.status()), sync: git.syncState() }));

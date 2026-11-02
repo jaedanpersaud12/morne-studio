@@ -24,7 +24,11 @@ export function SettingsModal() {
   const qc = useQueryClient();
   const { data: s } = useQuery({ queryKey: ["settings"], queryFn: api.settings, enabled: settingsOpen });
   const [key, setKey] = useState("");
+  const [xiKey, setXiKey] = useState("");
+  const { data: voices = [], error: voiceErr } = useQuery({ queryKey: ["voices", s?.hasElevenKey], queryFn: api.voices, enabled: settingsOpen && !!s?.hasElevenKey, retry: false });
+  const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities, enabled: settingsOpen });
   if (!settingsOpen || !s) return null;
+  const povs = ["default", "kit", "juno", "fen", "sol", "tock", "lonny", "lyra", "judge"];
   const patch = async (p: Parameters<typeof api.putSettings>[0]) => {
     try { await api.putSettings(p); qc.invalidateQueries({ queryKey: ["settings"] }); } catch (e: any) { say(e.message); }
   };
@@ -48,6 +52,44 @@ export function SettingsModal() {
               {s.models.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </label>
+        </section>
+        <section className="space-y-2">
+          <h3 className="label">Read aloud · ElevenLabs</h3>
+          <label className="block space-y-1">
+            <span>ElevenLabs API key {s.hasElevenKey && <span className="text-[var(--add)]">· saved on this machine</span>}</span>
+            <div className="flex gap-1.5">
+              <input type="password" autoComplete="off" value={xiKey} onChange={(e) => setXiKey(e.target.value)} placeholder={s.hasElevenKey ? "•••••••• (paste to replace)" : "xi-…"} className="field flex-1" />
+              <button className="btn" disabled={!xiKey.trim()} onClick={async () => { await patch({ elevenLabsApiKey: xiKey }); setXiKey(""); say("Key saved"); }}>Save</button>
+            </div>
+          </label>
+          {s.hasElevenKey && (
+            <>
+              {voiceErr ? <div className="text-xs text-[var(--del)]">{String((voiceErr as Error).message).slice(0, 160)}</div> : (
+                <div className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 items-center">
+                  {povs.map((pv) => (
+                    <label key={pv} className="contents">
+                      <span className="text-xs">{pv === "default" ? "Narrator" : entities.find((e) => e.id === pv)?.short ?? pv}</span>
+                      <select value={s.voices[pv] ?? ""} onChange={(e) => patch({ voices: { [pv]: e.target.value } })} className="field text-xs py-0.5">
+                        <option value="">{pv === "default" ? "Pick a voice" : "Use narrator"}</option>
+                        {voices.map((v) => <option key={v.voice_id} value={v.voice_id}>{v.name}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <label className="flex items-center justify-between gap-3">
+                <span>Model</span>
+                <select value={s.ttsModel} onChange={(e) => patch({ ttsModel: e.target.value })} className="field w-auto text-xs">{s.ttsModels.map((m) => <option key={m}>{m}</option>)}</select>
+              </label>
+              <span className="text-xs text-[var(--muted)]">A chapter reads in its POV character's voice. ▶ read in the top bar starts from the cursor.</span>
+            </>
+          )}
+        </section>
+        <section className="space-y-2">
+          <h3 className="label">Writing</h3>
+          <label className="flex items-center justify-between gap-3"><span>Daily target (words)</span><input type="number" min={50} step={50} defaultValue={s.dailyTarget} onBlur={(e) => patch({ dailyTarget: Number(e.target.value) })} className="field w-24 num" /></label>
+          <label className="flex items-center justify-between gap-3"><span>Book title</span><input defaultValue={s.bookTitle} onBlur={(e) => patch({ bookTitle: e.target.value })} className="field w-56" /></label>
+          <label className="flex items-center justify-between gap-3"><span>Author (for exports)</span><input defaultValue={s.authorName} placeholder="from git if blank" onBlur={(e) => patch({ authorName: e.target.value })} className="field w-56" /></label>
         </section>
         <section className="space-y-2">
           <h3 className="label">Sync between your machines</h3>
@@ -164,7 +206,7 @@ export function SyncAgent() {
         if (r.action === "conflict" && r.conflicts) { setConflicts(r.conflicts); say(r.message); }
         else if (r.action === "ff" || r.action === "merged") {
           say(`Synced · ${r.message}`);
-          ["file", "tree", "meta", "knowledge", "ledger", "flags", "presence", "outline", "entities"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+          ["file", "tree", "meta", "knowledge", "ledger", "flags", "presence", "outline", "entities", "notes", "progress", "graph", "numbers"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
         } else if (!r.ok && r.action !== "blocked") say(`Sync · ${r.message}`);
         qc.invalidateQueries({ queryKey: ["git"] });
       } catch { /* offline */ } finally { running.current = false; }

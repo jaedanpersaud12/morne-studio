@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import { useStore } from "../store";
+import { goTo, useStore } from "../store";
 import type { Ledger, Resource, LedgerEntry } from "../../shared/types";
 
 const SERIES = "#3987e5"; // dataviz slot 1, dark step; single-series sparklines use one hue
@@ -47,6 +47,8 @@ export default function LedgerView() {
             </dl>
           </section>
         )}
+
+        <NumbersInProse />
 
         <section aria-labelledby="res-h" className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -143,5 +145,47 @@ function Spark({ entries, maxDay, unit, label }: { entries: LedgerEntry[]; maxDa
         {h ? <>Day {h.day}: <span className="text-[var(--fg)]">{h.value.toLocaleString()} {unit}</span>{h.note ? ` · ${h.note}` : ""}</> : `day 0 – ${maxDay}`}
       </figcaption>
     </figure>
+  );
+}
+
+/** Every "N noun" in the chapters whose noun appears in the locked numbers, grouped by noun. Differences are prompts, not errors. */
+function NumbersInProse() {
+  const { data } = useQuery({ queryKey: ["numbers"], queryFn: api.numbers });
+  const [open, setOpen] = useState<string | null>(null);
+  if (!data || !data.locked.length) return null;
+  return (
+    <section aria-labelledby="num-h" className="space-y-2">
+      <div className="flex items-baseline gap-3">
+        <h2 id="num-h" className="label">Numbers in the prose</h2>
+        <span className="text-xs text-[var(--muted)]">Counts of locked nouns in the chapters. A different number is a prompt to check (other places, other days), not an error.</span>
+      </div>
+      <div className="rounded-lg overflow-hidden" style={{ boxShadow: "0 0 0 1px var(--line)" }}>
+        {data.locked.map((l) => {
+          const hits = data.hits.filter((h) => h.noun === l.noun);
+          const diff = hits.filter((h) => !h.matches);
+          const isOpen = open === l.noun;
+          return (
+            <div key={l.noun} className="border-t border-[var(--line)] first:border-t-0 bg-[var(--panel)]">
+              <button className="row w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-[var(--hover)]" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : l.noun)}>
+                <span className="text-[13px]"><span className="font-medium">{l.noun}</span> <span className="text-[var(--muted)]">locked {l.values.length > 3 ? `${l.values[0]}–${l.values.at(-1)}` : l.values.join(", ")} · {l.source}</span></span>
+                <span className="text-xs num shrink-0">{hits.length - diff.length} match{diff.length ? <> · <span className="text-[var(--accent)]">{diff.length} differ</span></> : ""} {isOpen ? "▴" : "▾"}</span>
+              </button>
+              {isOpen && (
+                <ul className="pb-2">
+                  {hits.sort((a, b) => Number(a.matches) - Number(b.matches) || a.number - b.number).map((h, i) => (
+                    <li key={i}>
+                      <button onClick={() => goTo(`chapters/${h.chapter}/LATEST.md`, h.line)} className="row w-full text-left px-3 py-1.5 hover:bg-[var(--hover)] grid grid-cols-[80px_1fr] gap-3 text-[13px]">
+                        <span className={`text-xs num ${h.matches ? "text-[var(--muted)]" : "text-[var(--accent)]"}`}>{h.matches ? "✓" : "≠"} ch {h.number} L{h.line}</span>
+                        <span className="leading-snug text-[var(--fg-dim)]">…{h.context.split(h.phrase)[0]}<mark>{h.phrase}</mark>{h.context.split(h.phrase).slice(1).join(h.phrase)}…</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }

@@ -84,7 +84,15 @@ export type LedgerEntry = { day: number; value: number; note?: string };
 export type Resource = { id: string; label: string; unit: string; entries: LedgerEntry[] };
 export type Ledger = { resources: Resource[] };
 
-export type Settings = { hasKey: boolean; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean };
+export type Settings = { hasKey: boolean; model: string; autoCommit: boolean; autoPush: boolean; autoPull: boolean; hasElevenKey: boolean; voices: Record<string, string>; ttsModel: string; dailyTarget: number; authorName: string; bookTitle: string };
 export type Conflict = { path: string; mine: string; theirs: string; base: string };
 export type SyncResult = { ok: boolean; action: "none" | "ff" | "merged" | "blocked" | "conflict" | "error" | "resolved" | "pushed" | "committed"; message: string; conflicts?: Conflict[] };
 export type SyncState = { lastPull: { at: number; result: SyncResult } | null; lastPush: { at: number; ok: boolean; message: string } | null; pushPending: boolean };
+
+export type Note = { id: string; file: string; quote: string; line: number; body: string; resolved: boolean; created: string; machine?: string };
+export type Progress = { days: Record<string, { added: number; removed: number }>; today: string; target: number; streak: number; machines: string[] };
+export type GraphData = {
+  nodes: { id: string; label: string; entity: boolean; group: string }[];
+  edges: { from: string; to: string; label: string; kind: "fault" | "bond"; note?: string; source: string }[];
+};
+export type NumberHit = { chapter: string; number: number; line: number; phrase: string; value: number; noun: string; matches: boolean; context: string };

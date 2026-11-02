@@ -7,8 +7,9 @@
     "dev": "concurrently -k -n server,app -c cyan,magenta \"bun --watch server/index.ts\" \"vite\"",
     "server": "bun server/index.ts",
     "build": "vite build",
-    "start": "NODE_ENV=production bun server/index.ts",
-    "typecheck": "tsc --noEmit"
+    "start": "bun server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "app": "vite build && bun server/index.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
@@ -21,6 +22,8 @@
     "@lezer/highlight": "^1.2.5",
     "@tanstack/react-query": "^5.80.0",
     "diff": "^8.0.2",
+    "docx": "^9.15.1",
+    "fflate": "^0.8.3",
     "hono": "^4.7.10",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
