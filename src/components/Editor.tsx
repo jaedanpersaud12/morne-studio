@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
 import { EditorView, keymap, highlightActiveLine, Decoration, MatchDecorator, ViewPlugin, hoverTooltip, drawSelection, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { livePreview } from "../livePreview";
+import { useMode } from "../store";
 import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
@@ -140,6 +142,8 @@ export default function Editor() {
   const ticComp = useMemo(() => new Compartment(), []);
   const noteComp = useMemo(() => new Compartment(), []);
   const readComp = useMemo(() => new Compartment(), []);
+  const liveComp = useMemo(() => new Compartment(), []);
+  const mode = useMode();
   const qc = useQueryClient();
   const { openPath, setDirty, setEntity, jumpLine, setJumpLine, focus, say, highlightTic, setSelection } = useStore();
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree });
@@ -179,7 +183,8 @@ export default function Editor() {
       doc: file.content,
       extensions: [
         history(), drawSelection(), highlightActiveLine(), highlightSelectionMatches(),
-        markdown(), syntaxHighlighting(mdHighlight),
+        markdown({ base: markdownLanguage }), syntaxHighlighting(mdHighlight),
+        liveComp.of(mode === "source" ? [] : livePreview),
         EditorView.lineWrapping,
         keymap.of([
           { key: "Mod-s", run: () => { saveRef.current(); return true; } },
@@ -221,6 +226,7 @@ export default function Editor() {
 
   useEffect(() => { view.current?.dispatch({ effects: ticComp.reconfigure(ticExtension(highlightTic)) }); }, [highlightTic, ticComp]);
 
+  useEffect(() => { view.current?.dispatch({ effects: liveComp.reconfigure(mode === "source" ? [] : livePreview) }); }, [mode, liveComp]);
   useEffect(() => { view.current?.dispatch({ effects: noteComp.reconfigure(notesExtension(notes, setActiveNote)) }); }, [notes, noteComp, setActiveNote]);
   useEffect(() => {
     const v = view.current; if (!v) return;

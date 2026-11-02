@@ -27,14 +27,14 @@ export function ProgressBadge() {
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`Today: ${today} of ${p.target} words. Streak ${p.streak} days.`}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[var(--muted)] hover:text-[var(--fg)] num">
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[var(--muted)] hover:text-[var(--fg)] num whitespace-nowrap shrink-0">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
           <circle cx="9" cy="9" r={R} fill="none" stroke="var(--line)" strokeWidth="2.5" />
           <circle cx="9" cy="9" r={R} fill="none" stroke={pct >= 1 ? "var(--add)" : "var(--accent)"} strokeWidth="2.5" strokeLinecap="round"
             strokeDasharray={`${pct * C} ${C}`} transform="rotate(-90 9 9)" />
         </svg>
-        <span><span className="text-[var(--fg-dim)]">{today.toLocaleString()}</span> / {p.target.toLocaleString()}</span>
-        {p.streak > 0 && <span title={`${p.streak}-day streak`}>· {p.streak}d</span>}
+        <span><span className="text-[var(--fg-dim)]">{today.toLocaleString()}</span><span className="hidden min-[1500px]:inline"> / {p.target.toLocaleString()}</span></span>
+        {p.streak > 0 && <span className="hidden min-[1500px]:inline" title={`${p.streak}-day streak`}>· {p.streak}d</span>}
       </button>
       {open && <ProgressPopover />}
     </div>

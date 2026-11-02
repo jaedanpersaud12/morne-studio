@@ -10,7 +10,7 @@ For working on the app itself: `bun install` then `bun dev`, and open http://loc
 
 ## Views (Ctrl/⌘ + 1–6)
 
-- **Write**: markdown editor (Ctrl+S save, Ctrl+\ focus). Every character name underlined: hover for a card, Ctrl-click to open it in Cast.
+- **Write**: markdown editor (Ctrl+S save, Ctrl+\ focus) with three displays in the top bar: **Live** (rendered as you write; raw syntax shows only on the line you're editing), **Source** (raw markdown), **Read** (fully rendered with tables; links between bible files open in the Studio; double-click to edit). Chapters default to Live, bible files to Read. Every character name underlined: hover for a card, Ctrl-click to open it in Cast.
 - **Board**: a card per chapter grouped by movement from bible/17, with days, beat, turn, status and an "ends worse?" check. Planned chapters from the outline appear as ghost cards with Create. Drag a card onto another to move it: folders, headings, versions and metadata renumber together. Words-by-POV bar on top.
 - **Timeline**: days covered by each chapter, one lane per POV; below it the parallel-stories grid from bible/17 lined up with the chapters in each movement.
 - **Who knows**: secrets × characters, each cell the chapter they learn it, with an as-of-chapter slider. The lint lists paragraphs where a POV character touches a secret before learning it; click to jump.

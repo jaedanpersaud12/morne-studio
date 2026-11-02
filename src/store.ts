@@ -3,6 +3,7 @@ import type { Conflict } from "../shared/types";
 
 export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude" | "notes" | "history";
 export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map";
+export type MdMode = "live" | "source" | "read";
 export type Selection = { from: number; to: number; text: string; context: string };
 
 type S = {
@@ -20,6 +21,7 @@ type S = {
   conflicts: Conflict[] | null; setConflicts: (c: Conflict[] | null) => void;
   activeNote: string | null; setActiveNote: (id: string | null) => void;
   readingLine: number | null; setReadingLine: (n: number | null) => void;
+  modes: { chapter: MdMode; bible: MdMode }; setMode: (m: MdMode) => void;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -43,7 +45,22 @@ export const useStore = create<S>((set, get) => ({
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
   activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),
   readingLine: null, setReadingLine: (readingLine) => set({ readingLine }),
+  modes: { chapter: "live", bible: "read", ...(saved.modes ?? {}) },
+  setMode: (m) => { const k = kindOf(get().openPath); const modes = { ...get().modes, [k]: m }; set({ modes }); persist({ modes }); },
 }));
+
+/** Chapters write in Live preview by default; bible files open rendered. */
+export const kindOf = (p: string | null): "chapter" | "bible" => (p && /^chapters\//.test(p) ? "chapter" : "bible");
+export const useMode = () => useStore((s) => s.modes[kindOf(s.openPath)]);
+
+/** Resolve a relative markdown link against the open file and open it. */
+export function openLink(href: string) {
+  if (/^[a-z]+:/i.test(href)) { window.open(href, "_blank", "noreferrer"); return; }
+  const from = useStore.getState().openPath ?? "";
+  const parts = from.split("/").slice(0, -1);
+  for (const seg of href.split("#")[0].split("/")) { if (seg === "..") parts.pop(); else if (seg && seg !== ".") parts.push(seg); }
+  if (parts.length) goTo(parts.join("/"));
+}
 
 /** Jump to a line in a file from anywhere (board, knowledge flags, backlinks). */
 export function goTo(file: string, line?: number) {

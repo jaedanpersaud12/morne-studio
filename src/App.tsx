@@ -10,7 +10,9 @@ import KnowledgeView from "./views/KnowledgeView";
 import LedgerView from "./views/LedgerView";
 import MapView from "./views/MapView";
 import { ProgressBadge, ReadAloud } from "./components/TopBarTools";
-import { useStore, type View } from "./store";
+import { useStore, useMode, type View, type MdMode } from "./store";
+import ReadView from "./components/ReadView";
+import { getEditorView } from "./editorBridge";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "write", label: "Write" }, { id: "board", label: "Board" }, { id: "timeline", label: "Timeline" },
@@ -26,6 +28,10 @@ export default function App() {
   const ch = tree?.chapters.find((c) => openPath === `chapters/${c.id}/LATEST.md`);
   const title = ch ? `${ch.number}. ${ch.title}` : openPath?.split("/").pop() ?? "";
   const writing = view === "write";
+  const mode = useMode();
+  const setMode = useStore((s) => s.setMode);
+  const { data: file } = useQuery({ queryKey: ["file", openPath], queryFn: () => api.file(openPath!), enabled: !!openPath, staleTime: Infinity });
+  const reading = writing && mode === "read" && !!openPath;
   const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities });
   const povId = ch?.pov ? entities.find((e) => e.short === ch.pov || e.aliases.includes(ch.pov!))?.id ?? null : null;
 
@@ -67,8 +73,16 @@ export default function App() {
           <div className="flex items-center gap-3 min-w-0 num text-[var(--muted)]">
           {writing && (
             <>
-              <span className="truncate text-[var(--fg-dim)]">{title}{dirty && <span className="text-[var(--accent)]"> · unsaved</span>}</span>
-              {ch && <span className="shrink-0 hidden min-[1200px]:inline">{ch.pov ? `${ch.pov} POV · ` : ""}{ch.words.toLocaleString()} w</span>}
+              <span className="truncate min-w-0 text-[var(--fg-dim)]">{title}{dirty && <span className="text-[var(--accent)]"> · unsaved</span>}</span>
+              {ch && <span className="shrink-0 hidden min-[1680px]:inline">{ch.pov ? `${ch.pov} POV · ` : ""}{ch.words.toLocaleString()} w</span>}
+              {openPath && (
+                <div role="radiogroup" aria-label="Markdown display" className="seg flex shrink-0 rounded-md bg-[var(--bg)] p-0.5">
+                  {(["live", "source", "read"] as MdMode[]).map((m) => (
+                    <button key={m} role="radio" aria-checked={mode === m} onClick={() => setMode(m)} title={m === "live" ? "Rendered while you write; syntax shows on the cursor line" : m === "source" ? "Raw markdown" : "Fully rendered, read-only (double-click to edit)"}
+                      className={`rounded px-1.5 py-0.5 ${mode === m ? "bg-[var(--active)] text-[var(--fg)]" : "hover:text-[var(--fg)]"}`}>{m[0].toUpperCase() + m.slice(1)}</button>
+                  ))}
+                </div>
+              )}
               <ReadAloud pov={povId} />
               <button onClick={toggleFocus} className="shrink-0 hover:text-[var(--fg)]" title={`${MOD}\\`}>{focus ? "exit focus" : "focus"}</button>
             </>
@@ -77,7 +91,8 @@ export default function App() {
           </div>
         </header>
         {/* the editor stays mounted across views so unsaved text and undo history survive a trip to the board */}
-        <div className={writing ? "flex-1 min-h-0 overflow-hidden" : "hidden"}><Editor /></div>
+        <div className={writing && !reading ? "flex-1 min-h-0 overflow-hidden" : "hidden"}><Editor /></div>
+        {reading && file && <div className="flex-1 min-h-0 overflow-hidden"><ReadView path={openPath!} content={dirty ? getEditorView()?.state.doc.toString() ?? file.content : file.content} /></div>}
         {!writing && (
           <div className="flex-1 min-h-0 overflow-hidden">
             {view === "board" && <BoardView />}
