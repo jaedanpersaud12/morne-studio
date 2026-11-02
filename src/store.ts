@@ -26,6 +26,7 @@ type S = {
   modes: { chapter: MdMode; bible: MdMode }; setMode: (m: MdMode) => void;
   inline: Inline | null;
   paletteOpen: boolean;
+  syncError: string | null;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -47,6 +48,7 @@ export const useStore = create<S>((set, get) => ({
   selection: null, setSelection: (selection) => set({ selection }),
   inline: null,
   paletteOpen: false,
+  syncError: null,
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
   activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),

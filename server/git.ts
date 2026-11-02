@@ -126,7 +126,8 @@ async function collectConflicts(): Promise<Conflict[]> {
 export const pull = () => serial(async (): Promise<SyncResult> => {
   const done = (result: SyncResult) => { state.lastPull = { at: Date.now(), result }; return result; };
   if (!(await hasUpstream())) return done({ ok: true, action: "none", message: "no remote branch to pull from" });
-  const f = await git(["fetch", "-q"]);
+  let f = await git(["fetch", "-q"]);
+  if (!f.ok && !/could not resolve host|unable to access/i.test(f.err)) { await Bun.sleep(1500); f = await git(["fetch", "-q"]); } // transient: a lock or a file another program held
   if (!f.ok) return done({ ok: false, action: "error", message: f.err || "fetch failed (offline?)" });
   let st = await status();
   if (st.behind === 0) return done({ ok: true, action: "none", message: st.ahead ? `up to date · ${st.ahead} to push` : "up to date" });

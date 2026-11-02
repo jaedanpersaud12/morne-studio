@@ -5,6 +5,7 @@ import { api } from "../api";
 import { useStore } from "../store";
 import type { Conflict } from "../../shared/types";
 import { Modal } from "./ui";
+import { toast } from "sonner";
 
 export function SettingsModal() {
   const { settingsOpen, setSettingsOpen, say } = useStore();
@@ -194,7 +195,12 @@ export function SyncAgent() {
         else if (r.action === "ff" || r.action === "merged") {
           say(`Synced · ${r.message}`);
           ["file", "tree", "meta", "knowledge", "ledger", "flags", "presence", "outline", "entities", "notes", "progress", "graph", "numbers"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-        } else if (!r.ok && r.action !== "blocked") say(`Sync · ${r.message}`);
+        }
+        if (!r.ok && r.action !== "blocked" && r.action !== "conflict") {
+          const msg = friendlySyncError(r.message);
+          if (useStore.getState().syncError !== msg) toast.error("Couldn't sync with GitHub", { description: msg, duration: 10000, action: { label: "Retry", onClick: () => pull() } });
+          useStore.setState({ syncError: msg });
+        } else if (r.ok) useStore.setState({ syncError: null });
         qc.invalidateQueries({ queryKey: ["git"] });
       } catch { /* offline */ } finally { running.current = false; }
     };
@@ -205,4 +211,15 @@ export function SyncAgent() {
     return () => { window.removeEventListener("focus", onFocus); clearInterval(iv); };
   }, [s?.autoPull, qc, say, setConflicts]);
   return null;
+}
+
+/** Git's raw stderr is noise to a writer; say what happened and what to do. */
+export function friendlySyncError(raw: string): string {
+  const m = raw || "";
+  if (/unable to create temporary file|unpack-objects failed|failed to write object|Permission denied|\.lock': File exists/i.test(m)) return "Git couldn't write to the book folder. Another program (another git window, antivirus, or a sync app) may have had it busy. It retries on its own.";
+  if (/could not resolve host|unable to access|timed out|network/i.test(m)) return "You look offline. Your work is saved here and will sync when you're back.";
+  if (/authentication|403|401|could not read Username/i.test(m)) return "GitHub refused the login. Run any git push from a terminal once to sign in again.";
+  if (/non-fast-forward|rejected/i.test(m)) return "The other machine pushed first. Studio will pull and merge on the next sync.";
+  const first = m.split("\n").map((l) => l.replace(/^(fatal|error):\s*/i, "").trim()).find(Boolean) ?? "Unknown error";
+  return first.length > 140 ? first.slice(0, 137) + "…" : first;
 }

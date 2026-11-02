@@ -15,8 +15,9 @@ export default function Sidebar() {
   const [showBible, setShowBible] = useState(() => { try { return localStorage.getItem("mbs-bible-open") === "1"; } catch { return false; } });
   const toggleBible = () => setShowBible((s) => { try { localStorage.setItem("mbs-bible-open", s ? "0" : "1"); } catch {} return !s; });
 
-  const syncTone = !git ? null : git.behind > 0 || git.sync.lastPush?.ok === false ? "warn" : git.ahead > 0 || git.dirty.some((d) => d.status !== "??") ? "pending" : "ok";
-  const syncLabel = !git ? "" : git.behind > 0 ? `${git.behind} to pull` : git.sync.lastPush?.ok === false ? "Push failed" : git.ahead > 0 ? `${git.ahead} to push` : "In sync";
+  const syncError = useStore((s) => s.syncError);
+  const syncTone = !git ? null : syncError ? "warn" : git.behind > 0 || git.sync.lastPush?.ok === false ? "warn" : git.ahead > 0 || git.dirty.some((d) => d.status !== "??") ? "pending" : "ok";
+  const syncLabel = !git ? "" : syncError ? "Sync paused" : git.behind > 0 ? `${git.behind} to pull` : git.sync.lastPush?.ok === false ? "Push failed" : git.ahead > 0 ? `${git.ahead} to push` : "In sync";
   const total = tree?.chapters.reduce((n, c) => n + c.words, 0) ?? 0;
   const cast = tree?.bible.filter((b) => b.path.includes("/cast/")) ?? [];
   const pages = tree?.bible.filter((b) => !b.path.includes("/cast/")) ?? [];
@@ -75,7 +76,7 @@ export default function Sidebar() {
 
       {syncTone && (
         <div className="px-3 pb-3">
-          <button className="side-sync" data-tone={syncTone} onClick={() => { setView("write"); useStore.getState().setPanel("history"); }}>
+          <button className="side-sync" data-tone={syncTone} title={syncError ?? undefined} onClick={() => { setView("write"); useStore.getState().setPanel("history"); }}>
             <span className="side-sync-dot" aria-hidden />{syncLabel}<span className="ml-auto text-[var(--muted)]">GitHub</span>
           </button>
         </div>
