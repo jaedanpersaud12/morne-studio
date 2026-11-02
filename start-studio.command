@@ -1,7 +1,9 @@
 #!/bin/bash
-# Double-click on the Mac. Builds the app, opens it, and keeps the server running in this window.
+# Double-click on the Mac. Installs/updates packages, builds, opens the app, keeps the server running here.
 cd "$(dirname "$0")"
-[ -d node_modules ] || bun install
-bun run build || exit 1
+command -v bun >/dev/null || { echo 'Bun is not installed. Run: curl -fsSL https://bun.sh/install | bash'; read -r; exit 1; }
+bun install || { echo 'bun install failed'; read -r; exit 1; }
+bun run build || { echo 'Build failed'; read -r; exit 1; }
 (sleep 1.5; open http://localhost:3131) &
-exec bun server/index.ts
+bun server/index.ts
+echo; echo 'The server stopped. If there is an error above, copy it to Claude.'; read -r
