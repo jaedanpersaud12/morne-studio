@@ -5,6 +5,7 @@ import { useStore } from "../store";
 import { getEditorView } from "../editorBridge";
 import { IconButton } from "./ui";
 import { AudioLines, Square } from "lucide-react";
+import { speak } from "../browserVoice";
 
 // sequential single-hue ramp (dataviz blue, dark-surface steps): near zero recedes into the surface
 const RAMP = ["var(--hover)", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4"];
@@ -138,7 +139,9 @@ export function ReadAloud({ pov }: { pov: string | null }) {
   if (!s) return null;
 
   const start = async () => {
-    if (!s.hasElevenKey || !(s.voices[pov ?? ""] || s.voices.default)) { setSettingsOpen(true); say("Add an ElevenLabs key and pick a narration voice."); return; }
+    const free = s.ttsProvider !== "elevenlabs";
+    if (free && typeof speechSynthesis === "undefined") { say("This browser has no built-in voices. Try Edge or Chrome."); return; }
+    if (!free && (!s.hasElevenKey || !(s.voices[pov ?? ""] || s.voices.default))) { setSettingsOpen(true); say("Add an ElevenLabs key and pick a narration voice, or switch to free voices in Settings."); return; }
     const v = getEditorView(); if (!v) return;
     const doc = v.state.doc;
     // paragraphs from the cursor's paragraph to the end
@@ -154,6 +157,19 @@ export function ReadAloud({ pov }: { pov: string | null }) {
     if (buf.length) paras.push({ line: at, text: buf.join(" ") });
     const queue = paras.filter((p) => !/^(#|---|<!--)/.test(p.text.trim()));
     if (!queue.length) return;
+    if (free) {
+      let stopped = false;
+      stopRef.current = () => { stopped = true; speechSynthesis.cancel(); setPlaying(false); setReadingLine(null); };
+      setPlaying(true);
+      const voice = s.browserVoices[pov ?? ""] || s.browserVoices.default;
+      for (const p of queue) {
+        if (stopped) break;
+        setReadingLine(p.line);
+        await speak(p.text, voice, s.browserRate);
+      }
+      setPlaying(false); setReadingLine(null);
+      return;
+    }
     const ctrl = new AbortController();
     let audio: HTMLAudioElement | null = null, stopped = false;
     stopRef.current = () => { stopped = true; ctrl.abort(); audio?.pause(); setPlaying(false); setReadingLine(null); };

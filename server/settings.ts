@@ -10,6 +10,7 @@ type Stored = {
   elevenLabsApiKey?: string; voices?: Record<string, string>; ttsModel?: string;
   dailyTarget?: number; authorName?: string; bookTitle?: string;
   aiWrites?: boolean;
+  ttsProvider?: "browser" | "elevenlabs"; browserVoices?: Record<string, string>; browserRate?: number;
 };
 
 export const MODELS = ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5", "claude-fable-5-1"];
@@ -39,6 +40,9 @@ export async function getSettings(): Promise<Settings> {
     authorName: s.authorName ?? "",
     bookTitle: s.bookTitle ?? "Morne Bay",
     aiWrites: s.aiWrites ?? true,
+    ttsProvider: s.ttsProvider ?? (s.elevenLabsApiKey ? "elevenlabs" : "browser"),
+    browserVoices: s.browserVoices ?? {},
+    browserRate: s.browserRate ?? 1,
   };
 }
 export async function putSettings(patch: Partial<Stored>) {
@@ -51,6 +55,9 @@ export async function putSettings(patch: Partial<Stored>) {
   if (typeof patch.dailyTarget === "number" && patch.dailyTarget > 0 && patch.dailyTarget < 100000) next.dailyTarget = Math.round(patch.dailyTarget);
   for (const k of ["authorName", "bookTitle"] as const) if (typeof patch[k] === "string") next[k] = patch[k]!.slice(0, 120);
   if (patch.voices && typeof patch.voices === "object") next.voices = { ...(s.voices ?? {}), ...patch.voices };
+  if (patch.ttsProvider === "browser" || patch.ttsProvider === "elevenlabs") next.ttsProvider = patch.ttsProvider;
+  if (patch.browserVoices && typeof patch.browserVoices === "object") next.browserVoices = { ...(s.browserVoices ?? {}), ...patch.browserVoices };
+  if (typeof patch.browserRate === "number" && patch.browserRate >= 0.5 && patch.browserRate <= 2) next.browserRate = patch.browserRate;
   await writeFile(FILE, JSON.stringify(next, null, 2) + "\n", "utf8");
   return getSettings();
 }

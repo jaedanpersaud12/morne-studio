@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import type { Conflict } from "../../shared/types";
 import { Modal } from "./ui";
 import { toast } from "sonner";
+import { useBrowserVoices, speak } from "../browserVoice";
 
 export function SettingsModal() {
   const { settingsOpen, setSettingsOpen, say } = useStore();
@@ -42,7 +43,16 @@ export function SettingsModal() {
           </label>
         </section>
         <section className="space-y-2">
-          <h3 className="label">Read aloud · ElevenLabs</h3>
+          <h3 className="label">Read aloud</h3>
+          <div className="flex gap-1.5">
+            {([["browser", "Free · this computer's voices"], ["elevenlabs", "ElevenLabs (paid)"]] as const).map(([id, label]) => (
+              <button key={id} className="btn" data-on={s.ttsProvider === id || undefined} style={s.ttsProvider === id ? { boxShadow: "inset 0 0 0 1px var(--accent)", color: "var(--fg)" } : { opacity: .7 }} onClick={() => patch({ ttsProvider: id })}>{label}</button>
+            ))}
+          </div>
+          {s.ttsProvider === "browser" && <FreeVoices s={s} povs={povs} entities={entities} patch={patch} />}
+        </section>
+        {s.ttsProvider === "elevenlabs" && <section className="space-y-2">
+          <h3 className="label">ElevenLabs</h3>
           <label className="block space-y-1">
             <span>ElevenLabs API key {s.hasElevenKey && <span className="text-[var(--add)]">· saved on this machine</span>}</span>
             <div className="flex gap-1.5">
@@ -72,7 +82,7 @@ export function SettingsModal() {
               <span className="text-xs text-[var(--muted)]">A chapter reads in its POV character's voice. ▶ read in the top bar starts from the cursor.</span>
             </>
           )}
-        </section>
+        </section>}
         <section className="space-y-2">
           <h3 className="label">Writing</h3>
           <label className="flex items-center justify-between gap-3"><span>Daily target (words)</span><input type="number" min={50} step={50} defaultValue={s.dailyTarget} onBlur={(e) => patch({ dailyTarget: Number(e.target.value) })} className="field w-24 num" /></label>
@@ -242,4 +252,34 @@ export function friendlySyncError(raw: string): string {
   if (/non-fast-forward|rejected/i.test(m)) return "The other machine pushed first. Studio will pull and merge on the next sync.";
   const first = m.split("\n").map((l) => l.replace(/^(fatal|error):\s*/i, "").trim()).find(Boolean) ?? "Unknown error";
   return first.length > 140 ? first.slice(0, 137) + "…" : first;
+}
+
+function FreeVoices({ s, povs, entities, patch }: { s: any; povs: string[]; entities: { id: string; short: string }[]; patch: (p: any) => void }) {
+  const voices = useBrowserVoices();
+  const english = voices.filter((v) => v.lang.startsWith("en"));
+  const list = english.length ? english : voices;
+  const natural = list.some((v) => /natural|neural|online/i.test(v.name));
+  if (typeof speechSynthesis === "undefined") return <div className="text-xs text-[var(--del)]">This browser has no built-in voices. Open Studio in Edge or Chrome.</div>;
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-[var(--muted)]">Free and offline. {natural ? "Natural voices found." : "For much better free voices, open Studio in Microsoft Edge: it adds Microsoft's natural voices."} Voices differ per computer, so the Mac keeps its own picks.</div>
+      <div className="grid grid-cols-[90px_1fr_auto] gap-x-2 gap-y-1.5 items-center">
+        {povs.map((pv) => (
+          <label key={pv} className="contents">
+            <span className="text-xs">{pv === "default" ? "Narrator" : entities.find((e) => e.id === pv)?.short ?? pv}</span>
+            <select value={s.browserVoices[pv] ?? ""} onChange={(e) => patch({ browserVoices: { [pv]: e.target.value } })} className="field text-xs py-0.5">
+              <option value="">{pv === "default" ? "System default" : "Use narrator"}</option>
+              {list.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name.replace(/^Microsoft /, "").replace(/ Online \(Natural\)/, " · natural")} ({v.lang})</option>)}
+            </select>
+            <button className="btn" title="Hear it" onClick={() => { speechSynthesis.cancel(); speak("Juno was at the counter with the notebook. She had been there at one, when Sol stopped pretending to sleep.", s.browserVoices[pv] || s.browserVoices.default, s.browserRate); }}>▶</button>
+          </label>
+        ))}
+      </div>
+      <label className="flex items-center justify-between gap-3 text-xs">
+        <span>Speed <span className="num text-[var(--muted)]">{s.browserRate.toFixed(2)}×</span></span>
+        <input type="range" min={0.6} max={1.6} step={0.05} defaultValue={s.browserRate} onChange={(e) => patch({ browserRate: Number(e.target.value) })} className="w-40" />
+      </label>
+      <span className="text-xs text-[var(--muted)]">A chapter reads in its POV character's voice, from the cursor, with the line highlighted.</span>
+    </div>
+  );
 }
