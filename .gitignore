@@ -3,3 +3,4 @@ dist
 .studio-cache
 studio.local.json
 .env
+.update-*.tgz
