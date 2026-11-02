@@ -9,9 +9,9 @@ import type { WikiPage } from "../shared/types";
 const CATS: { id: string; label: string; match: (p: string) => boolean }[] = [
   { id: "start", label: "Start here", match: (p) => /bible\/(00|01)-/.test(p) },
   { id: "people", label: "People", match: (p) => p.includes("/cast/") || /bible\/(09|10)-/.test(p) },
-  { id: "world", label: "World", match: (p) => /bible\/(02|03|04|05|06|07|08|12|13)-/.test(p) },
-  { id: "story", label: "Story", match: (p) => /bible\/(11|16|17|19)-/.test(p) },
-  { id: "craft", label: "Craft", match: (p) => /bible\/(14|15|18)-/.test(p) },
+  { id: "world", label: "World", match: (p) => /bible\/(02|03|04|05|06|07|08|12|13|22|23)-/.test(p) },
+  { id: "story", label: "Story", match: (p) => /bible\/(11|16|17|19|20)-/.test(p) },
+  { id: "craft", label: "Craft", match: (p) => /bible\/(14|15|18|21|24)-/.test(p) },
 ];
 export const categoryOf = (p: string) => CATS.find((c) => c.match(p))?.id ?? "other";
 
