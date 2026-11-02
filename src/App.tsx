@@ -37,7 +37,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
+      if (!(e.metaKey || e.ctrlKey) || e.defaultPrevented) return;
       if (e.key === "\\") { e.preventDefault(); toggleFocus(); }
       else if (e.key.toLowerCase() === "k") { e.preventDefault(); setView("write"); setPanel("claude"); }
       else if (e.key === "1") { e.preventDefault(); setView("write"); }

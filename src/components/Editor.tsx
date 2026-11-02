@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { EditorState, Compartment } from "@codemirror/state";
+import { inlineExtension, inlineField, setInline } from "../inlineAi";
+import InlineBar from "./InlineBar";
 import { EditorView, keymap, highlightActiveLine, Decoration, MatchDecorator, ViewPlugin, hoverTooltip, drawSelection, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
@@ -138,6 +140,7 @@ const mdHighlight = HighlightStyle.define([
 export default function Editor() {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  const wrap = useRef<HTMLDivElement>(null);
   const entComp = useMemo(() => new Compartment(), []);
   const ticComp = useMemo(() => new Compartment(), []);
   const noteComp = useMemo(() => new Compartment(), []);
@@ -188,6 +191,12 @@ export default function Editor() {
         EditorView.lineWrapping,
         keymap.of([
           { key: "Mod-s", run: () => { saveRef.current(); return true; } },
+          { key: "Mod-k", run: (v) => {
+            const sel = v.state.selection.main;
+            if (sel.empty || v.state.field(inlineField)) return false;
+            v.dispatch({ effects: [setInline.of({ phase: "prompt", from: sel.from, to: sel.to, original: v.state.sliceDoc(sel.from, sel.to), proposed: "", instruction: "" }), EditorView.scrollIntoView(sel.to, { y: "nearest", yMargin: 140 })] });
+            return true;
+          } },
           { key: "Mod-Alt-m", run: () => { const st = useStore.getState(); if (st.selection?.text.trim()) { st.setPanel("notes"); setTimeout(() => document.getElementById("note-new")?.focus(), 50); } else st.say("Select the words the note is about."); return true; } },
           ...defaultKeymap, ...historyKeymap, ...searchKeymap,
         ]),
@@ -195,7 +204,10 @@ export default function Editor() {
         ticComp.of(ticExtension(highlightTic)),
         noteComp.of(notesExtension(notes, setActiveNote)),
         readComp.of(readingExtension(readingLine)),
+        inlineExtension,
         EditorView.updateListener.of((u) => {
+          const il = u.state.field(inlineField);
+          if (il !== u.startState.field(inlineField)) useStore.setState({ inline: il });
           if (u.docChanged) setDirty(true);
           if (u.selectionSet || u.docChanged) {
             const sel = u.state.selection.main;
@@ -220,7 +232,7 @@ export default function Editor() {
     view.current = new EditorView({ state, parent: host.current });
     setEditorView(view.current);
     setDirty(false);
-    return () => { view.current?.destroy(); view.current = null; setEditorView(null); };
+    return () => { view.current?.destroy(); view.current = null; setEditorView(null); useStore.setState({ inline: null }); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file?.path, file?.content === undefined]);
 
@@ -257,5 +269,10 @@ export default function Editor() {
   }, [jumpLine, file?.path, setJumpLine]);
 
   if (!openPath) return <div className="h-full grid place-items-center text-[var(--muted)]">Pick a chapter.</div>;
-  return <div ref={host} className={`h-full ${focus ? "focus" : ""}`} />;
+  return (
+    <div ref={wrap} className="relative h-full">
+      <div ref={host} className={`h-full ${focus ? "focus" : ""}`} />
+      <InlineBar chapter={label} host={wrap} />
+    </div>
+  );
 }

@@ -283,3 +283,48 @@ svg [role="button"]:focus-visible rect { fill: var(--accent); }
 @keyframes ai-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes ai-in { from { opacity: 0; translate: 0 4px; } }
 @keyframes ai-blink { 50% { opacity: 0; } }
+
+/* ---------------- inline Claude (Ctrl+K in the editor) ---------------- */
+.ai-ghost-target { background: var(--sel); border-radius: 2px; }
+.ai-ghost-pending { color: var(--fg-dim); background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 14%, transparent), transparent); background-size: 200% 100%; border-radius: 2px; }
+.ai-ghost-del { text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--del) 80%, transparent); text-decoration-thickness: from-font; color: var(--muted); background: color-mix(in oklab, var(--del) 12%, transparent); border-radius: 2px; }
+.ai-ghost-ins { color: var(--fg); background: color-mix(in oklab, var(--add) 18%, transparent); border-radius: 2px; white-space: pre-wrap; box-shadow: 0 1px 0 color-mix(in oklab, var(--add) 55%, transparent); }
+.ai-inline { position: absolute; z-index: 15; padding: 6px; border-radius: 12px; background: var(--panel); font-family: var(--font-ui); font-size: 13px; transform-origin: top left; }
+.ai-inline-row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 4px 0 6px; }
+.ai-inline input { flex: 1; min-width: 0; background: transparent; outline: none; color: var(--fg); font-size: 13px; height: 30px; }
+.ai-inline input::placeholder { color: var(--muted); }
+.ai-inline-mark { color: var(--accent); font-size: 12px; }
+.ai-inline kbd { font-family: var(--font-ui); font-size: 10.5px; color: var(--muted); padding: 1px 5px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line); }
+.ai-decide-accept kbd { color: inherit; opacity: .7; margin-left: 4px; }
+.ai-inline-quick { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 4px 2px; border-top: 1px solid var(--line); margin-top: 4px; }
+.ai-inline-btn { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px; font-size: 12px; color: var(--fg-dim); }
+.ai-inline-btn:hover { background: var(--hover); color: var(--fg); }
+@media (prefers-reduced-motion: no-preference) {
+  .ai-inline { animation: ai-pop 180ms var(--ease-out) both; }
+  .ai-ghost-pending { animation: ai-shimmer 1.6s linear infinite; }
+}
+@keyframes ai-pop { from { opacity: 0; scale: .97; translate: 0 -4px; } }
+@keyframes ai-fade { from { opacity: 0; } }
+
+.ai-composer-wrap { position: sticky; }
+.ai-mentions { position: absolute; left: 0; right: 0; bottom: calc(100% - 8px); padding: 4px; border-radius: 10px; background: var(--panel); display: flex; flex-direction: column; z-index: 2; }
+.ai-mention { display: flex; align-items: baseline; gap: 8px; text-align: left; padding: 6px 8px; border-radius: 6px; font-size: 12.5px; min-width: 0; }
+.ai-mention[aria-selected="true"] { background: var(--hover); }
+.ai-mention-key { color: var(--accent); flex: none; }
+.ai-mention-hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ai-option { display: flex; gap: 10px; align-items: baseline; text-align: left; padding: 8px 10px; border-radius: 8px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); font-family: var(--font-prose); font-size: 14px; line-height: 1.5; color: var(--fg); }
+.ai-option:hover { box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 45%, var(--line)); }
+.ai-option-n { font-family: var(--font-ui); font-size: 11px; color: var(--muted); }
+.ai-option-use { font-family: var(--font-ui); font-size: 11px; color: var(--accent); opacity: 0; }
+.ai-option:hover .ai-option-use, .ai-option:focus-visible .ai-option-use { opacity: 1; }
+.ai-actions { display: flex; gap: 2px; margin-left: -6px; }
+.ai-actions button { font-size: 11.5px; color: var(--muted); padding: 2px 6px; border-radius: 5px; }
+.ai-actions button:hover { color: var(--fg); background: var(--hover); }
+.ai-quote { cursor: pointer; text-decoration: underline dotted color-mix(in oklab, var(--accent) 60%, transparent); text-underline-offset: 3px; }
+.ai-quote:hover { color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  .ai-mentions { animation: ai-pop 140ms var(--ease-out) both; transform-origin: bottom left; }
+  .ai-option, .ai-actions button { transition: box-shadow 120ms ease, background-color 120ms ease, color 120ms ease, scale 150ms var(--ease-out); }
+  .ai-option:active { scale: .98; }
+  .ai-option-use { transition: opacity 120ms ease; }
+}

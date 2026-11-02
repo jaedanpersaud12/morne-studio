@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { marked } from "marked";
 import { diffWords } from "diff";
 import { api } from "../api";
 import { goTo, useStore } from "../store";
 import { replaceRange } from "../editorBridge";
-import type { AiEvent, AiSource, Tree } from "../../shared/types";
+import type { AiEvent, AiSource, Entity, Tree } from "../../shared/types";
+import { getEditorView } from "../editorBridge";
+import { EditorView } from "@codemirror/view";
 
 type Step = { id: string; label: string; state: "running" | "done"; summary?: string; sources?: AiSource[] };
 type Run = {
-  id: number; action: string; question?: string; selection?: { from: number; to: number; text: string };
+  id: number; action: string; question?: string; focus?: string[]; selection?: { from: number; to: number; text: string };
   status: string; steps: Step[]; text: string; narration: string[]; done: boolean; error?: string;
   ms?: number; usage?: { input: number; output: number; cached: number }; sources: AiSource[];
   decided?: "accepted" | "rejected";
@@ -33,7 +35,9 @@ export default function ClaudePanel() {
   const { selection, openPath, setSettingsOpen, say } = useStore();
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const { data: tree } = useQuery({ queryKey: ["tree"], queryFn: api.tree });
-  const [runs, setRuns] = useState<Run[]>([]);
+  const { data: entities = [] } = useQuery({ queryKey: ["entities"], queryFn: api.entities });
+  const [runs, setRuns] = useState<Run[]>(loadThread);
+  useEffect(() => { saveThread(runs); }, [runs]);
   const [q, setQ] = useState("");
   const abort = useRef<AbortController | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -44,17 +48,20 @@ export default function ClaudePanel() {
 
   const update = (id: number, f: (r: Run) => Run) => setRuns((rs) => rs.map((r) => (r.id === id ? f(r) : r)));
 
-  const go = async (action: string, question?: string) => {
+  const go = async (action: string, question?: string, opts: { replace?: number; selection?: Run["selection"] } = {}) => {
     if (busy) return;
-    if (action !== "ask" && !selection?.text.trim()) { say("Select some text in the editor first."); return; }
+    const focus = question ? mentionPaths(question, tree, entities) : undefined;
+    if (action !== "ask" && !opts.selection && !selection?.text.trim()) { say("Select some text in the editor first."); return; }
     const id = Date.now();
-    const sel = action !== "ask" && selection ? { from: selection.from, to: selection.to, text: selection.text } : undefined;
-    const history = action === "ask" ? runs.filter((r) => r.action === "ask" && r.done && !r.error).slice(-4).map((r) => ({ q: r.question!, a: r.text })) : undefined;
-    setRuns((rs) => [...(action === "ask" ? rs : rs.filter((r) => r.action === "ask")), { id, action, question, selection: sel, status: "Thinking", steps: [], text: "", narration: [], done: false, sources: [] }]);
+    const sel = opts.selection ?? (action !== "ask" && selection ? { from: selection.from, to: selection.to, text: selection.text } : undefined);
+    const prior = opts.replace ? runs.slice(0, runs.findIndex((r) => r.id === opts.replace)) : runs;
+    const history = action === "ask" ? prior.filter((r) => r.action === "ask" && r.done && !r.error).slice(-4).map((r) => ({ q: r.question!, a: r.text })) : undefined;
+    const fresh: Run = { id, action, question, focus, selection: sel, status: "Thinking", steps: [], text: "", narration: [], done: false, sources: [] };
+    setRuns((rs) => opts.replace ? rs.map((r) => (r.id === opts.replace ? fresh : r)) : [...(action === "ask" ? rs : rs.filter((r) => r.action === "ask")), fresh]);
     abort.current = new AbortController();
     try {
       await api.claude(
-        { action, selection: sel?.text ?? "", context: action === "ask" ? undefined : selection?.context, chapter: ch ? `${ch.number}. ${ch.title} (${ch.pov ?? "?"} POV)` : openPath ?? undefined, question, history },
+        { action, selection: sel?.text ?? "", context: action === "ask" ? undefined : selection?.context, chapter: ch ? `${ch.number}. ${ch.title} (${ch.pov ?? "?"} POV)` : openPath ?? undefined, question, history, focus },
         (ev: AiEvent) => update(id, (r) => apply(r, ev)),
         abort.current.signal,
       );
@@ -94,7 +101,9 @@ export default function ClaudePanel() {
             <button key={a.id} className="ai-chip" title={a.hint} disabled={busy || !selection?.text.trim()} onClick={() => go(a.id)}>{a.label}</button>
           ))}
         </div>
-        {edit && <RunView run={edit} tree={tree} onStop={() => abort.current?.abort()} onDecide={(d, text) => {
+        {edit && <RunView run={edit} tree={tree} onStop={() => abort.current?.abort()} onRetry={() => go(edit.action, undefined, { replace: edit.id, selection: edit.selection })}
+          onUse={(text) => { if (!edit.selection) return; const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, text); say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection."); }}
+          onDecide={(d, text) => {
           if (d === "accepted" && edit.selection) {
             const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, (text ?? edit.text).trim());
             say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection.");
@@ -118,11 +127,11 @@ export default function ClaudePanel() {
         {asks.map((r) => (
           <div key={r.id} className="space-y-2">
             <div className="ai-question">{r.question}</div>
-            <RunView run={r} tree={tree} onStop={() => abort.current?.abort()} />
+            <RunView run={r} tree={tree} onStop={() => abort.current?.abort()} onRetry={() => go("ask", r.question, { replace: r.id })} />
           </div>
         ))}
         <div ref={bottom} />
-        <Composer value={q} onChange={setQ} busy={busy} placeholder={asks.length ? "Ask a follow-up…" : "Ask anything about the book…"}
+        <Composer value={q} onChange={setQ} busy={busy} tree={tree} entities={entities} placeholder={asks.length ? "Ask a follow-up…" : "Ask anything about the book…"}
           onSubmit={() => { if (q.trim()) { go("ask", q.trim()); setQ(""); } }} onStop={() => abort.current?.abort()} />
         <div className="text-xs text-[var(--muted)]">{settings?.model} · searches chapters and bible before answering · <button className="underline underline-offset-2" onClick={() => setSettingsOpen(true)}>settings</button></div>
       </section>
@@ -145,8 +154,10 @@ function apply(r: Run, ev: AiEvent): Run {
 }
 
 // ---------------- a single run: thinking pill, steps, answer, sources ----------------
-function RunView({ run, tree, onStop, onDecide }: { run: Run; tree?: Tree; onStop: () => void; onDecide?: (d: "accepted" | "rejected", text?: string) => void }) {
+function RunView({ run, tree, onStop, onDecide, onRetry, onUse }: { run: Run; tree?: Tree; onStop: () => void; onDecide?: (d: "accepted" | "rejected", text?: string) => void; onRetry?: () => void; onUse?: (text: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const options = run.action === "describe" ? parseOptions(run.text) : [];
   const working = !run.done;
   const showSteps = run.steps.length > 0;
   return (
@@ -183,11 +194,21 @@ function RunView({ run, tree, onStop, onDecide }: { run: Run; tree?: Tree; onSto
       )}
       {run.action === "tighten" && run.selection && run.text
         ? <TightenDiff original={run.selection.text} proposed={run.text} working={working} decided={run.decided} onDecide={onDecide!} />
-        : run.text && <Answer text={run.text} tree={tree} streaming={working} />}
+        : run.action === "describe" && run.done && options.length > 1 && onUse
+          ? <div className="flex flex-col gap-1.5">{options.map((o, i) => (
+              <button key={i} className="ai-option" onClick={() => onUse(o)} title="Replace the selection with this"><span className="ai-option-n num">{i + 1}</span><span className="flex-1">{o}</span><span className="ai-option-use">Use</span></button>
+            ))}</div>
+          : run.text && <Answer text={run.text} tree={tree} streaming={working} />}
       {run.error && <div className="ai-error" role="alert">{run.error}</div>}
       {run.done && !run.error && run.sources.length > 0 && run.action !== "tighten" && (
         <div className="flex flex-wrap gap-1 pt-1">
           {dedupe(run.sources).slice(0, 8).map((s) => <button key={`${s.file}:${s.line}`} className="ai-source" onClick={() => goTo(s.file, s.line)} title={s.file}>{s.label}</button>)}
+        </div>
+      )}
+      {run.done && (run.text || run.error) && run.action !== "tighten" && (
+        <div className="ai-actions">
+          {run.text && <button onClick={() => { navigator.clipboard?.writeText(run.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }).catch(() => {}); }}>{copied ? "Copied" : "Copy"}</button>}
+          {onRetry && <button onClick={onRetry}>Retry</button>}
         </div>
       )}
       {run.done && run.usage && run.usage.input > 0 && (
@@ -209,7 +230,8 @@ function ThinkingPill({ label }: { label: string }) {
 /** Markdown answer; [ch 4 L99] and [bible/x.md L12] become citation chips that jump to the line. */
 function Answer({ text, tree, streaming }: { text: string; tree?: Tree; streaming: boolean }) {
   const html = useMemo(() => {
-    const raw = marked.parse(text, { gfm: true, async: false }) as string;
+    const quoted = text.replace(/(^|[\s(—–-])[“"]([^"”\n]{3,160})[”"]/g, (_m, pre: string, q: string) => `${pre}<q class="ai-quote" data-q="${q.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")}">${q}</q>`);
+    const raw = marked.parse(quoted, { gfm: true, async: false }) as string;
     return raw.replace(/\[((?:ch\s*\d+(?:\s*,?\s*L\d+(?:\s*[–-]\s*\d+)?)?)|(?:(?:bible\/)?(?:cast\/)?[\w.-]+\.md(?:\s*,?\s*L\d+(?:\s*[–-]\s*\d+)?)?))\]/gi, (m, inner: string) => {
       const target = resolveCite(inner, tree);
       if (!target) return m;
@@ -219,7 +241,12 @@ function Answer({ text, tree, streaming }: { text: string; tree?: Tree; streamin
   }, [text, tree]);
   return (
     <div className="ai-answer read-md" data-streaming={streaming}
-      onClick={(e) => { const b = (e.target as HTMLElement).closest(".ai-cite") as HTMLElement | null; if (b) goTo(b.dataset.file!, b.dataset.line ? Number(b.dataset.line) : undefined); }}
+      onMouseDown={(e) => { if ((e.target as HTMLElement).closest(".ai-quote")) e.preventDefault(); }}
+      onClick={(e) => {
+        const t = e.target as HTMLElement;
+        const b = t.closest(".ai-cite") as HTMLElement | null; if (b) { goTo(b.dataset.file!, b.dataset.line ? Number(b.dataset.line) : undefined); return; }
+        const q = t.closest(".ai-quote") as HTMLElement | null; if (q) findInEditor(q.dataset.q!);
+      }}
       dangerouslySetInnerHTML={{ __html: html }} />
   );
 }
@@ -262,17 +289,95 @@ function TightenDiff({ original, proposed, working, decided, onDecide }: { origi
   );
 }
 
-function Composer({ value, onChange, onSubmit, onStop, busy, placeholder }: { value: string; onChange: (v: string) => void; onSubmit: () => void; onStop: () => void; busy: boolean; placeholder: string }) {
+type Mention = { key: string; label: string; hint: string; path: string };
+function mentionables(tree?: Tree, entities: Entity[] = []): Mention[] {
+  const chs = (tree?.chapters ?? []).map((c) => ({ key: `ch${c.number}`, label: `ch${c.number}`, hint: `${c.title}${c.pov ? ` · ${c.pov}` : ""}`, path: `chapters/${c.id}/LATEST.md` }));
+  const people = entities.filter((e) => e.file).map((e) => ({ key: e.short.replace(/\s+/g, ""), label: e.short.replace(/\s+/g, ""), hint: e.name + (e.age ? ` · ${e.age}` : ""), path: e.file! }));
+  return [...chs, ...people];
+}
+function mentionPaths(q: string, tree?: Tree, entities: Entity[] = []): string[] {
+  const all = mentionables(tree, entities);
+  return [...q.matchAll(/@([\w'-]+)/g)].map((m) => all.find((x) => x.key.toLowerCase() === m[1].toLowerCase())?.path).filter((p): p is string => !!p);
+}
+
+function Composer({ value, onChange, onSubmit, onStop, busy, placeholder, tree, entities }: { value: string; onChange: (v: string) => void; onSubmit: () => void; onStop: () => void; busy: boolean; placeholder: string; tree?: Tree; entities: Entity[] }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(0);
+  const [hi, setHi] = useState(0);
+  const pending = useRef<number | null>(null);
+  useLayoutEffect(() => { if (pending.current != null && ref.current) { ref.current.setSelectionRange(pending.current, pending.current); setCaret(pending.current); pending.current = null; } }, [value]);
+  const token = value.slice(0, caret).match(/@([\w'-]*)$/);
+  const list = useMemo(() => {
+    if (!token) return [];
+    const t = token[1].toLowerCase();
+    const all = mentionables(tree, entities);
+    const pre = all.filter((m) => m.key.toLowerCase().startsWith(t));
+    const rest = t.length >= 2 ? all.filter((m) => !pre.includes(m) && m.hint.toLowerCase().split(/[\s·]+/).some((w) => w.startsWith(t))) : [];
+    return [...pre, ...rest].slice(0, 6);
+  }, [token?.[1], tree, entities]);
+  useEffect(() => setHi(0), [token?.[1]]);
+  const pick = (m: Mention) => {
+    const start = caret - token![0].length;
+    const next = value.slice(0, start) + "@" + m.key + " " + value.slice(caret);
+    onChange(next);
+    pending.current = start + m.key.length + 2;
+  };
   return (
-    <div className="ai-composer-wrap"><form className="ai-composer" onSubmit={(e) => { e.preventDefault(); onSubmit(); }} onClick={() => ref.current?.focus()}>
-      <textarea ref={ref} rows={1} value={value} placeholder={placeholder} aria-label="Ask the book" onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmit(); } }} />
-      {busy
-        ? <button type="button" className="ai-send" aria-label="Stop" onClick={onStop}>■</button>
-        : <button type="submit" className="ai-send" aria-label="Send" disabled={!value.trim()}>↑</button>}
-    </form></div>
+    <div className="ai-composer-wrap">
+      {list.length > 0 && (
+        <div className="ai-mentions popover" role="listbox" aria-label="Mention a chapter or character">
+          {list.map((m, i) => (
+            <button key={m.key} role="option" aria-selected={i === hi} className="ai-mention" onMouseDown={(e) => { e.preventDefault(); pick(m); }} onMouseEnter={() => setHi(i)}>
+              <span className="ai-mention-key">@{m.label}</span><span className="ai-mention-hint">{m.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <form className="ai-composer" onSubmit={(e) => { e.preventDefault(); onSubmit(); }} onClick={() => ref.current?.focus()}>
+        <textarea ref={ref} rows={1} value={value} placeholder={placeholder} aria-label="Ask the book"
+          onChange={(e) => { onChange(e.target.value); setCaret(e.target.selectionStart); }}
+          onSelect={(e) => setCaret((e.target as HTMLTextAreaElement).selectionStart)}
+          onKeyDown={(e) => {
+            if (list.length) {
+              if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => (h + 1) % list.length); return; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => (h - 1 + list.length) % list.length); return; }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pick(list[hi]); return; }
+              if (e.key === "Escape") { e.preventDefault(); onChange(value.slice(0, caret - token![0].length) + value.slice(caret)); return; }
+            }
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmit(); }
+          }} />
+        {busy
+          ? <button type="button" className="ai-send" aria-label="Stop" onClick={onStop}>■</button>
+          : <button type="submit" className="ai-send" aria-label="Send" disabled={!value.trim()}>↑</button>}
+      </form>
+    </div>
   );
+}
+
+/** "1. foo\n2. bar" → ["foo", "bar"] (Describe's alternatives). */
+function parseOptions(t: string): string[] {
+  return t.split("\n").map((l) => l.match(/^\s*\d+[.)]\s+(.*)$/)?.[1]?.replace(/^\*\*[^*]+\*\*:?\s*/, "").replace(/^\((sight|sound|touch|smell|taste)\)\s*/i, "").trim()).filter((x): x is string => !!x);
+}
+
+/** Select a quoted phrase in the open chapter. */
+function findInEditor(phrase: string) {
+  const v = getEditorView();
+  const say = useStore.getState().say;
+  if (!v) { say("Open the chapter to find that phrase."); return; }
+  const doc = v.state.doc.toString();
+  let at = doc.indexOf(phrase);
+  if (at < 0) at = doc.toLowerCase().indexOf(phrase.toLowerCase());
+  if (at < 0) { say("That phrase isn't in the open file."); return; }
+  v.dispatch({ selection: { anchor: at, head: at + phrase.length }, effects: EditorView.scrollIntoView(at, { y: "center" }) });
+  v.focus();
+}
+
+const THREAD_KEY = "mbs-thread";
+function loadThread(): Run[] {
+  try { return (JSON.parse(localStorage.getItem(THREAD_KEY) ?? "[]") as Run[]).filter((r) => r.action === "ask" && r.done); } catch { return []; }
+}
+function saveThread(runs: Run[]) {
+  try { localStorage.setItem(THREAD_KEY, JSON.stringify(runs.filter((r) => r.action === "ask" && r.done && !r.error).slice(-12))); } catch {}
 }
 
 const fmtMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} s`);

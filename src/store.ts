@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Conflict } from "../shared/types";
+import type { Inline } from "./inlineAi";
 
 export type Panel = "entity" | "backlinks" | "versions" | "stats" | "git" | "cast" | "claude" | "notes" | "history";
 export type View = "write" | "board" | "timeline" | "knowledge" | "ledger" | "map";
@@ -22,6 +23,7 @@ type S = {
   activeNote: string | null; setActiveNote: (id: string | null) => void;
   readingLine: number | null; setReadingLine: (n: number | null) => void;
   modes: { chapter: MdMode; bible: MdMode }; setMode: (m: MdMode) => void;
+  inline: Inline | null;
 };
 
 const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
@@ -41,6 +43,7 @@ export const useStore = create<S>((set, get) => ({
   say: (toast) => { set({ toast }); if (toast) setTimeout(() => set((s) => (s.toast === toast ? { toast: null } : {})), 2800); },
   highlightTic: null, setHighlightTic: (highlightTic) => set({ highlightTic }),
   selection: null, setSelection: (selection) => set({ selection }),
+  inline: null,
   settingsOpen: false, setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   conflicts: null, setConflicts: (conflicts) => set({ conflicts }),
   activeNote: null, setActiveNote: (activeNote) => set({ activeNote, ...(activeNote ? { panel: "notes" as Panel } : {}) }),

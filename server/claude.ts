@@ -5,7 +5,7 @@ import { apiKey, getSettings } from "./settings";
 import { getKnowledge } from "./studio-data";
 import type { AiEvent } from "../shared/types";
 
-export type ClaudeAction = "tighten" | "check" | "cost" | "describe" | "ask";
+export type ClaudeAction = "tighten" | "rewrite" | "check" | "cost" | "describe" | "ask";
 
 /**
  * The Studio's AI. Every action runs the same agent: Claude gets the core bible (cached) and, for the actions that need
@@ -17,6 +17,10 @@ const TASKS: Record<ClaudeAction, { prompt: string; tools: boolean; maxTokens: n
   tighten: {
     tools: false, maxTokens: 4000,
     prompt: "Revise the SELECTED passage so it obeys the writing rules. Keep the voice, point of view, tense, dialect, every fact and every beat. Cut filter words, narrator explanation, simile that does not change what the reader sees, and and-and-and chains in quiet passages. Return ONLY the revised passage with the same paragraph breaks: no preamble, no quotes, no notes.",
+  },
+  rewrite: {
+    tools: false, maxTokens: 4000,
+    prompt: "Revise the SELECTED passage following the author's INSTRUCTION, within the writing rules. Keep the voice, point of view, tense, dialect and every fact unless the instruction says otherwise. It must still read seamlessly with the surrounding text. Return ONLY the revised passage with its paragraph breaks: no preamble, no quotes, no notes.",
   },
   check: {
     tools: true, maxTokens: 2000,
@@ -123,6 +127,18 @@ async function coreBible(): Promise<string> {
   }
   return parts.join("\n\n");
 }
+/** Files the author @-mentioned: read in full (numbered), capped so a long chapter can't crowd out the rest. */
+async function focusFiles(paths: string[]): Promise<string> {
+  const out: string[] = [];
+  for (const p of [...new Set(paths)].slice(0, 4)) {
+    if (!/^(chapters|bible)\/[\w./-]+\.md$/.test(p) || p.includes("..")) continue;
+    const t = await readText(p).catch(() => null); if (t == null) continue;
+    const lines = t.split("\n").slice(0, 700).map((l, i) => `${i + 1}\t${l}`).join("\n");
+    out.push(`<file path="${p}">\n${lines.slice(0, 40000)}\n</file>`);
+  }
+  return out.join("\n");
+}
+
 async function castFor(text: string): Promise<string> {
   const ents = await loadEntities();
   const named = ents.filter((e) => e.file && e.file !== "bible/cast/supporting.md" && e.aliases.some((a) => new RegExp(`(?<![A-Za-z])${a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z])`).test(text))).slice(0, 4);
@@ -131,13 +147,13 @@ async function castFor(text: string): Promise<string> {
   return out.join("\n\n");
 }
 
-export type RunOpts = { action: ClaudeAction; selection: string; context?: string; chapter?: string; question?: string; history?: { q: string; a: string }[] };
+export type RunOpts = { action: ClaudeAction; selection: string; context?: string; chapter?: string; question?: string; instruction?: string; focus?: string[]; history?: { q: string; a: string }[] };
 
 export async function* run(opts: RunOpts): AsyncGenerator<AiEvent> {
   const task = TASKS[opts.action];
   if (!task) throw new Error("unknown action");
   const started = Date.now();
-  yield { t: "status", label: opts.action === "ask" ? "Thinking" : opts.action === "tighten" ? "Tightening" : "Reading" };
+  yield { t: "status", label: opts.action === "ask" ? "Thinking" : opts.action === "tighten" || opts.action === "rewrite" ? "Rewriting" : "Reading" };
 
   if (process.env.CLAUDE_MOCK === "1") { yield* mock(opts, task.tools, started); return; }
 
@@ -147,12 +163,15 @@ export async function* run(opts: RunOpts): AsyncGenerator<AiEvent> {
   const client = new Anthropic({ apiKey: key });
 
   const cast = await castFor(`${opts.selection}\n${opts.question ?? ""}\n${(opts.history ?? []).map((h) => h.q).join("\n")}`);
+  const focus = await focusFiles(opts.focus ?? []);
   const userParts = [
     opts.chapter ? `<chapter>${opts.chapter}</chapter>` : "",
     cast ? `<cast_files>\n${cast}\n</cast_files>` : "",
     opts.context ? `<surrounding_text>\n${opts.context}\n</surrounding_text>` : "",
     opts.selection ? `<selected>\n${opts.selection}\n</selected>` : "",
     opts.question ? `<question>${opts.question}</question>` : "",
+    opts.instruction ? `<instruction>${opts.instruction}</instruction>` : "",
+    focus ? `<focus_files note="the author pointed at these with @">\n${focus}\n</focus_files>` : "",
     `<task>${task.prompt}${task.tools || opts.action === "ask" ? `\n${CITE}` : ""}</task>`,
   ].filter(Boolean).join("\n\n");
 
@@ -195,7 +214,8 @@ export async function* run(opts: RunOpts): AsyncGenerator<AiEvent> {
 // ---------------- mock (CLAUDE_MOCK=1): real tools, scripted model ----------------
 async function* mock(opts: RunOpts, tools: boolean, started: number): AsyncGenerator<AiEvent> {
   const words = async function* (s: string) { for (const w of s.match(/\S+\s*/g) ?? []) { await Bun.sleep(6); yield { t: "text", d: w } as AiEvent; } };
-  if (opts.action === "tighten") { yield { t: "turn" }; yield* words(opts.selection.replace(/\b(had )?noticed that\b/gi, "noticed").replace(/\s{2,}/g, " ")); yield { t: "done", ms: Date.now() - started, usage: { input: 0, output: 0, cached: 0 }, sources: [] }; return; }
+  if (opts.action === "tighten" || opts.action === "rewrite") { yield { t: "turn" }; yield* words(opts.selection.replace(/\bvery /gi, "").replace(/\b(had )?noticed that\b/gi, "noticed").replace(/\s{2,}/g, " ")); yield { t: "done", ms: Date.now() - started, usage: { input: 0, output: 0, cached: 0 }, sources: [] }; return; }
+  if (opts.action === "describe") { yield { t: "turn" }; yield* words(`1. The light went thin and grey over the yard.\n2. Somewhere below, the generator coughed once and kept on.\n3. The rail was cold enough to sting her palm.\n`); yield { t: "done", ms: Date.now() - started, usage: { input: 0, output: 0, cached: 0 }, sources: [] }; return; }
   const seen: { file: string; line?: number; label: string }[] = [];
   let firstHit: { file: string; line: number } | null = null;
   if (tools) {
@@ -216,6 +236,8 @@ async function* mock(opts: RunOpts, tools: boolean, started: number): AsyncGener
   }
   yield { t: "turn" };
   const cite = seen[0] ? `[${seen[0].label.replace(/^ch (\d+) .*? (L\d+).*$/, "ch $1 $2")}]` : "";
-  yield* words(`**Mock answer.** The first passage the search found is the place to start ${cite}.\n\n- It was read in full before answering.\n- Citations link back to the text.\n`);
+  const quote = opts.selection ? `\n- "${opts.selection.split(/\s+/).slice(0, 4).join(" ")}" is quoted from the selection.` : "";
+  const focusNote = opts.focus?.length ? `\n- Focus files: ${opts.focus.join(", ")}.` : "";
+  yield* words(`**Mock answer.** The first passage the search found is the place to start ${cite}.\n\n- It was read in full before answering.\n- Citations link back to the text.${quote}${focusNote}\n`);
   yield { t: "done", ms: Date.now() - started, usage: { input: 0, output: 0, cached: 0 }, sources: seen.slice(0, 12) };
 }

@@ -62,7 +62,7 @@ export const api = {
     show: (hash: string, path: string) => j<{ content: string }>("/api/git/show" + q({ hash, path })),
   },
   /** Streams newline-delimited AiEvents from the agent. */
-  claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string; history?: { q: string; a: string }[] }, onEvent: (e: import("../shared/types").AiEvent) => void, signal?: AbortSignal) => {
+  claude: async (body: { action: string; selection: string; context?: string; chapter?: string; question?: string; instruction?: string; focus?: string[]; history?: { q: string; a: string }[] }, onEvent: (e: import("../shared/types").AiEvent) => void, signal?: AbortSignal) => {
     const r = await fetch("/api/claude", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal });
     if (!r.ok || !r.body) throw new Error(await r.text());
     const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
