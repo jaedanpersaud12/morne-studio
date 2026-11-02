@@ -56,8 +56,9 @@ export default function ClaudePanel() {
     const sel = opts.selection ?? (action !== "ask" && selection ? { from: selection.from, to: selection.to, text: selection.text } : undefined);
     const prior = opts.replace ? runs.slice(0, runs.findIndex((r) => r.id === opts.replace)) : runs;
     const history = action === "ask" ? prior.filter((r) => r.action === "ask" && r.done && !r.error).slice(-4).map((r) => ({ q: r.question!, a: r.text })) : undefined;
+    if (action !== "ask") setOpenEdit(null);
     const fresh: Run = { id, action, question, focus, selection: sel, status: "Thinking", steps: [], text: "", narration: [], done: false, sources: [] };
-    setRuns((rs) => opts.replace ? rs.map((r) => (r.id === opts.replace ? fresh : r)) : [...(action === "ask" ? rs : rs.filter((r) => r.action === "ask")), fresh]);
+    setRuns((rs) => opts.replace ? rs.map((r) => (r.id === opts.replace ? fresh : r)) : [...rs, fresh]);
     abort.current = new AbortController();
     try {
       await api.claude(
@@ -83,7 +84,17 @@ export default function ClaudePanel() {
   }
 
   const asks = runs.filter((r) => r.action === "ask");
-  const edit = runs.find((r) => r.action !== "ask");
+  const edits = runs.filter((r) => r.action !== "ask").reverse().slice(0, 6); // newest first
+  const [openEdit, setOpenEdit] = useState<number | null>(null);
+  const shownEdit = openEdit ?? edits[0]?.id ?? null;
+  const decide = (edit: Run, d: "accepted" | "rejected", text?: string) => {
+    if (d === "accepted" && edit.selection) {
+      const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, (text ?? edit.text).trim());
+      say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection.");
+      if (!ok) return;
+    }
+    update(edit.id, (r) => ({ ...r, decided: d }));
+  };
 
   return (
     <div className="flex flex-col min-h-full gap-4">
@@ -101,16 +112,33 @@ export default function ClaudePanel() {
             <button key={a.id} className="ai-chip" title={a.hint} disabled={busy || !selection?.text.trim()} onClick={() => go(a.id)}>{a.label}</button>
           ))}
         </div>
-        {edit && <RunView run={edit} tree={tree} onStop={() => abort.current?.abort()} onRetry={() => go(edit.action, undefined, { replace: edit.id, selection: edit.selection })}
-          onUse={(text) => { if (!edit.selection) return; const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, text); say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection."); }}
-          onDecide={(d, text) => {
-          if (d === "accepted" && edit.selection) {
-            const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, (text ?? edit.text).trim());
-            say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection.");
-            if (!ok) return;
-          }
-          update(edit.id, (r) => ({ ...r, decided: d }));
-        }} />}
+        {edits.length > 0 && (
+          <div className="ai-edits">
+            {edits.map((edit) => {
+              const open = edit.id === shownEdit;
+              return (
+                <div key={edit.id} className="ai-edit" data-open={open || undefined}>
+                  <div className="ai-edit-head">
+                    <button className="ai-edit-title" onClick={() => setOpenEdit(open ? -1 : edit.id)} aria-expanded={open}>
+                      <span className="ai-caret" data-open={open}>›</span>
+                      <span className="ai-edit-action">{ACTIONS.find((a) => a.id === edit.action)?.label ?? edit.action}</span>
+                      <span className="ai-edit-target">“{excerpt(edit.selection?.text)}”</span>
+                    </button>
+                    <span className="ai-edit-state" data-state={editState(edit)}>{editLabel(edit)}</span>
+                    {edit.done && <button className="ai-edit-x" aria-label="Dismiss" title="Dismiss" onClick={() => { setRuns((rs) => rs.filter((r) => r.id !== edit.id)); if (openEdit === edit.id) setOpenEdit(null); }}>✕</button>}
+                  </div>
+                  {open && (
+                    <div className="ai-edit-body">
+                      <RunView run={edit} tree={tree} onStop={() => abort.current?.abort()} onRetry={() => go(edit.action, undefined, { replace: edit.id, selection: edit.selection })}
+                        onUse={(text) => { if (!edit.selection) return; const ok = replaceRange(edit.selection.from, edit.selection.to, edit.selection.text, text); say(ok ? "Replaced · Ctrl+Z to undo" : "The text moved; couldn't find the original selection."); if (ok) update(edit.id, (r) => ({ ...r, decided: "accepted" })); }}
+                        onDecide={(d, text) => decide(edit, d, text)} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* ---- ask the book ---- */}
@@ -200,12 +228,13 @@ function RunView({ run, tree, onStop, onDecide, onRetry, onUse }: { run: Run; tr
             ))}</div>
           : run.text && <Answer text={run.text} tree={tree} streaming={working} />}
       {run.error && <div className="ai-error" role="alert">{run.error}</div>}
+      {run.done && !run.error && !run.text.trim() && <div className="ai-error" role="alert">Claude came back empty. Hit Retry.</div>}
       {run.done && !run.error && run.sources.length > 0 && run.action !== "tighten" && (
         <div className="flex flex-wrap gap-1 pt-1">
           {dedupe(run.sources).slice(0, 8).map((s) => <button key={`${s.file}:${s.line}`} className="ai-source" onClick={() => goTo(s.file, s.line)} title={s.file}>{s.label}</button>)}
         </div>
       )}
-      {run.done && (run.text || run.error) && run.action !== "tighten" && (
+      {run.done && (run.text || run.error) && (
         <div className="ai-actions">
           {run.text && <button onClick={() => { navigator.clipboard?.writeText(run.text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1200); }).catch(() => {}); }}>{copied ? "Copied" : "Copy"}</button>}
           {onRetry && <button onClick={onRetry}>Retry</button>}
@@ -380,5 +409,8 @@ function saveThread(runs: Run[]) {
   try { localStorage.setItem(THREAD_KEY, JSON.stringify(runs.filter((r) => r.action === "ask" && r.done && !r.error).slice(-12))); } catch {}
 }
 
+const excerpt = (t?: string) => { const w = (t ?? "").trim().split(/\s+/); return w.slice(0, 7).join(" ") + (w.length > 7 ? "…" : ""); };
+const editState = (r: Run) => (!r.done ? "working" : r.error ? "error" : r.decided ?? (r.action === "tighten" || r.action === "describe" ? "pending" : "done"));
+const editLabel = (r: Run) => ({ working: "Working…", error: "Failed", accepted: "Applied", rejected: "Kept original", pending: "Not applied", done: r.ms ? fmtMs(r.ms) : "" } as Record<string, string>)[editState(r)];
 const fmtMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} s`);
 const dedupe = (s: AiSource[]) => s.filter((x, i) => s.findIndex((y) => y.file === x.file && y.line === x.line) === i);

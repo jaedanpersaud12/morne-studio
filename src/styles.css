@@ -441,3 +441,20 @@ svg [role="button"]:focus-visible rect { fill: var(--accent); }
   .ui-tip[data-starting-style], .ui-tip[data-ending-style], .ui-dialog[data-starting-style], .ui-dialog[data-ending-style], .ui-palette[data-starting-style], .ui-palette[data-ending-style] { opacity: 0; }
   .ui-tip, .ui-dialog, .ui-palette, .ui-backdrop { transition: opacity 120ms ease; }
 }
+
+/* selection results: newest open, older ones collapse to a row */
+.ai-edits { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.ai-edit { border-radius: 10px; box-shadow: 0 0 0 1px var(--line); background: var(--bg); }
+.ai-edit[data-open] { box-shadow: 0 0 0 1px var(--line-strong); }
+.ai-edit-head { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 6px 0 4px; }
+.ai-edit-title { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: 34px; padding: 0 4px; font-size: 12.5px; text-align: left; }
+.ai-edit-action { color: var(--fg); font-weight: 550; flex: none; }
+.ai-edit-target { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-prose); }
+.ai-edit-state { flex: none; font-size: 11px; color: var(--muted); padding: 2px 7px; border-radius: 999px; background: var(--hover); }
+.ai-edit-state[data-state="working"] { color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.ai-edit-state[data-state="accepted"] { color: var(--add); background: color-mix(in oklab, var(--add) 12%, transparent); }
+.ai-edit-state[data-state="pending"] { color: var(--fg-dim); }
+.ai-edit-state[data-state="error"] { color: var(--del); background: color-mix(in oklab, var(--del) 12%, transparent); }
+.ai-edit-x { flex: none; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); font-size: 11px; display: grid; place-items: center; }
+.ai-edit-x:hover { background: var(--hover); color: var(--fg); }
+.ai-edit-body { padding: 2px 10px 10px; }

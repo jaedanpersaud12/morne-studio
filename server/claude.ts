@@ -15,27 +15,27 @@ export type ClaudeAction = "tighten" | "rewrite" | "check" | "cost" | "describe"
 
 const TASKS: Record<ClaudeAction, { prompt: string; tools: boolean; maxTokens: number }> = {
   tighten: {
-    tools: false, maxTokens: 4000,
+    tools: false, maxTokens: 16000,
     prompt: "Revise the SELECTED passage so it obeys the writing rules. Keep the voice, point of view, tense, dialect, every fact and every beat. Cut filter words, narrator explanation, simile that does not change what the reader sees, and and-and-and chains in quiet passages. Return ONLY the revised passage with the same paragraph breaks: no preamble, no quotes, no notes.",
   },
   rewrite: {
-    tools: false, maxTokens: 4000,
+    tools: false, maxTokens: 16000,
     prompt: "Revise the SELECTED passage following the author's INSTRUCTION, within the writing rules. Keep the voice, point of view, tense, dialect and every fact unless the instruction says otherwise. It must still read seamlessly with the surrounding text. Return ONLY the revised passage with its paragraph breaks: no preamble, no quotes, no notes.",
   },
   check: {
-    tools: true, maxTokens: 2000,
+    tools: true, maxTokens: 16000,
     prompt: "Check the SELECTED passage against the bible and the earlier chapters. Use the tools to verify facts you are not sure of (names, ages, numbers, days, who knows what by this chapter, how powers work and what they cost). Then list every contradiction and every writing-rule breach as a markdown list: the exact phrase in quotes, what it breaks, and a citation. If nothing is wrong, say so in one line. Terse; no praise.",
   },
   cost: {
-    tools: true, maxTokens: 1200,
+    tools: true, maxTokens: 12000,
     prompt: "Apply bible/14 'Decisions cost' to the SELECTED passage. In at most 150 words: what decision does the POV character make, what did they choose it over, what does it cost, and has the book left them an out that turns cost into cover? Look up earlier chapters if the decision depends on them. End with one concrete suggestion if there is an out.",
   },
   describe: {
-    tools: false, maxTokens: 800,
+    tools: false, maxTokens: 8000,
     prompt: "Give three alternative versions of the SELECTED words, each grounded in a different sense (sight, sound, touch, smell or taste), in the book's register: plain words, close third, no simile. A numbered list, one line each, nothing else.",
   },
   ask: {
-    tools: true, maxTokens: 2500,
+    tools: true, maxTokens: 16000,
     prompt: "Answer the QUESTION about the book. Search before you answer: start broad, then read the passages that matter. Check both the chapters (what is on the page) and the bible (what is planned); say which is which. Do not narrate your searching; call tools, then write the answer. Use markdown: a direct answer first, then short supporting points. If the book does not settle it, say exactly what is and isn't on the page.",
   },
 };
@@ -43,6 +43,8 @@ const TASKS: Record<ClaudeAction, { prompt: string; tools: boolean; maxTokens: n
 const CITE = `Cite every claim inline in square brackets, exactly in one of these forms: [ch 4 L99], [ch 4 L99-112], [bible/14-writing-rules.md], [bible/cast/kit.md L15]. Line numbers come from the tools. Never cite something you have not read.`;
 
 const SYSTEM_HEAD = `You are the editor and continuity keeper for "Morne Bay", a YA novel set on a Caribbean island where every adult has fallen into an unwakeable sleep. The author writes it; you serve the author's voice and the story bible, never your own taste. The bible is law: if the text contradicts it, say so. Close third, past tense, light island English in dialogue, "said" only. Never invent canon. Chapters are canon over the bible wherever they disagree.`;
+
+const QUICK = new Set<ClaudeAction>(["tighten", "rewrite", "describe"]);
 
 // ---------------- tools ----------------
 const TOOLS: Anthropic.Tool[] = [
@@ -186,14 +188,28 @@ export async function* run(opts: RunOpts): AsyncGenerator<AiEvent> {
   const seen = new Map<string, { file: string; line?: number; label: string }>();
   let usage = { input: 0, output: 0, cached: 0 };
 
+  let effortOk = true, wrote = false;
   for (let turn = 0; turn < 8; turn++) {
     const last = turn === 7;
-    const stream = client.messages.stream({ model, max_tokens: task.maxTokens, system, messages, ...(task.tools ? { tools: TOOLS, ...(last ? { tool_choice: { type: "none" as const } } : {}) } : {}) });
+    const params: any = { model, max_tokens: task.maxTokens, system, messages, ...(task.tools ? { tools: TOOLS, ...(last ? { tool_choice: { type: "none" as const } } : {}) } : {}) };
+    // quick edits (tighten, rewrite, describe) don't need deep reasoning: ask for low effort so they come back fast
+    if (QUICK.has(opts.action) && effortOk) params.output_config = { effort: "low" };
+    let stream = client.messages.stream(params);
     yield { t: "turn" };
-    for await (const ev of stream) {
-      if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") yield { t: "text", d: ev.delta.text };
+    let thinking = false;
+    try {
+      for await (const ev of stream) {
+        if (ev.type === "content_block_start" && (ev.content_block.type === "thinking" || ev.content_block.type === "redacted_thinking") && !thinking) { thinking = true; yield { t: "status", label: "Thinking" }; }
+        if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") { if (ev.delta.text.trim()) wrote = true; yield { t: "text", d: ev.delta.text }; }
+      }
+    } catch (e: any) {
+      // a model that rejects the effort setting: drop it and retry this turn once
+      if (params.output_config && /effort|output_config/i.test(String(e?.message))) { effortOk = false; turn--; continue; }
+      throw e;
     }
     const msg = await stream.finalMessage();
+    if (msg.stop_reason === "max_tokens" && !msg.content.some((b) => b.type === "text" && b.text.trim())) throw new Error("Claude ran out of room before writing an answer. Try a shorter selection, or pick a different model in Settings.");
+    if (msg.stop_reason === "refusal") throw new Error("Claude declined this one. Try rephrasing.");
     usage = { input: usage.input + msg.usage.input_tokens, output: usage.output + msg.usage.output_tokens, cached: usage.cached + (msg.usage.cache_read_input_tokens ?? 0) };
     messages.push({ role: "assistant", content: msg.content });
     if (msg.stop_reason !== "tool_use") break;
@@ -208,6 +224,7 @@ export async function* run(opts: RunOpts): AsyncGenerator<AiEvent> {
     }
     messages.push({ role: "user", content: results });
   }
+  if (!wrote) throw new Error("Claude finished without writing anything. Try again.");
   yield { t: "done", ms: Date.now() - started, usage, sources: [...seen.values()].slice(0, 12) };
 }
 
