@@ -3,8 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { useStore } from "../store";
 import { getEditorView } from "../editorBridge";
-import { IconButton } from "./ui";
-import { AudioLines, Square } from "lucide-react";
+import { Tip } from "./ui";
+import { AudioLines, Play, Square } from "lucide-react";
 import { speak } from "../browserVoice";
 
 // sequential single-hue ramp (dataviz blue, dark-surface steps): near zero recedes into the surface
@@ -189,8 +189,12 @@ export function ReadAloud({ pov }: { pov: string | null }) {
     setPlaying(false); setReadingLine(null);
   };
   return (
-    <IconButton label={playing ? "Stop reading" : `Read aloud from the cursor${pov ? ` in ${pov}'s voice` : ""}`} onClick={() => (playing ? stopRef.current() : start())} active={playing}>
-      {playing ? <Square size={13} fill="currentColor" /> : <AudioLines size={15} />}
-    </IconButton>
+    <Tip label={playing ? "Stop reading" : `Read aloud from the cursor${pov ? ` in ${pov}'s voice` : ""}`}>
+      <button type="button" className="listen-btn" data-playing={playing || undefined} onClick={() => (playing ? stopRef.current() : start())} aria-pressed={playing}>
+        {playing ? <Square size={11} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+        <span>{playing ? "Stop" : "Listen"}</span>
+        {playing && <AudioLines size={13} className="listen-wave" aria-hidden />}
+      </button>
+    </Tip>
   );
 }

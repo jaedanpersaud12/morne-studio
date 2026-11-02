@@ -85,7 +85,7 @@ export default function App() {
           {writing && (
             <>
               <span className="truncate min-w-0 text-[var(--fg-dim)] text-[13px] px-1">{title}{dirty && <span className="unsaved-dot" title="Unsaved changes" aria-label="unsaved" />}</span>
-              {ch && <span className="shrink-0 hidden min-[1680px]:inline pr-1">{ch.pov ? `${ch.pov} · ` : ""}{ch.words.toLocaleString()} words</span>}
+              {ch && <span className="shrink-0 hidden min-[1900px]:inline pr-1">{ch.pov ? `${ch.pov} · ` : ""}{ch.words.toLocaleString()} words</span>}
               {openPath && (
                 <Segmented label="Markdown display" size="sm" value={mode} onChange={(m) => setMode(m as MdMode)} items={[
                   { id: "live", label: "Live", icon: <Type size={13} />, tip: "Rendered while you write" },

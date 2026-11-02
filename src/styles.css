@@ -636,3 +636,9 @@ svg [role="button"]:focus-visible rect { fill: var(--accent); }
   .wiki-preview { animation: ai-pop 140ms var(--ease-out) both; transform-origin: top left; }
   .wiki-link-row, .wiki-person, .wiki-card li button, .wiki-backlinks button, .wiki-quote, .wiki-toc a { transition: background-color 120ms ease, box-shadow 120ms ease, color 120ms ease, border-color 160ms ease; }
 }
+
+/* read aloud */
+.listen-btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px 0 9px; border-radius: 999px; font-size: 12.5px; color: var(--fg-dim); box-shadow: inset 0 0 0 1px var(--line-strong); flex: none; }
+.listen-btn:hover { color: var(--fg); background: var(--hover); }
+.listen-btn[data-playing] { color: #1a140b; background: var(--accent); box-shadow: none; }
+@media (prefers-reduced-motion: no-preference) { .listen-btn { transition: background-color 120ms ease, color 120ms ease, scale 150ms var(--ease-out); } .listen-btn:active { scale: .96; } .listen-wave { animation: ai-dot 1s ease-in-out infinite; } }
