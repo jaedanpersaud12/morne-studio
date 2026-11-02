@@ -25,12 +25,21 @@ const HDR = { "content-type": "application/json", "x-studio-source": "mcp" };
 async function ensureServer() {
   try { const r = await fetch(`${BASE}/tree`, { signal: AbortSignal.timeout(1500) }); if (r.ok) return "attached to the running Studio"; } catch {}
   const mod = await import("./server/index.ts");
-  Bun.serve(mod.default as any);
+  const srv = Bun.serve(mod.default as any);
+  // if the author launches Studio, it asks this background server to step aside; the MCP keeps running and reattaches
+  mod.lifecycle.stop = () => { srv.stop(true); };
   return "started Studio's server in the background";
 }
 
 async function call<T = any>(p: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(BASE + p, { ...init, headers: { ...HDR, ...(init?.headers ?? {}) } });
+  const go = () => fetch(BASE + p, { ...init, headers: { ...HDR, ...(init?.headers ?? {}) } });
+  let r: Response;
+  try { r = await go(); }
+  catch {
+    // Studio restarting: wait for it, then start our own if it never comes back
+    await Bun.sleep(2000);
+    try { r = await go(); } catch { await ensureServer(); r = await go(); }
+  }
   const text = await r.text();
   if (!r.ok) throw new Error(text.replace(/^\{"error":"|"\}$/g, "") || `${r.status} ${r.statusText}`);
   try { return JSON.parse(text); } catch { return text as T; }

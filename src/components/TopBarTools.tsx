@@ -161,11 +161,13 @@ export function ReadAloud({ pov }: { pov: string | null }) {
       let stopped = false;
       stopRef.current = () => { stopped = true; speechSynthesis.cancel(); setPlaying(false); setReadingLine(null); };
       setPlaying(true);
-      const voice = s.browserVoices[pov ?? ""] || s.browserVoices.default;
+      const bv = s.browserVoices ?? {};
+      const voice = bv[pov ?? ""] || bv.default;
+      if (!speechSynthesis.getVoices().length) say("No voices found in this browser. Open Studio in Edge or Chrome.");
       for (const p of queue) {
         if (stopped) break;
         setReadingLine(p.line);
-        await speak(p.text, voice, s.browserRate);
+        await speak(p.text, voice, s.browserRate ?? 1);
       }
       setPlaying(false); setReadingLine(null);
       return;

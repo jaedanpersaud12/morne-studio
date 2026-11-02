@@ -52,6 +52,10 @@ export function useLiveEvents() {
     };
     fetch("/api/agent/activity").then((r) => r.json()).then((items: AgentActivity[]) => useStore.setState((s) => ({ agent: s.agent.length ? s.agent : items }))).catch(() => {});
     connect();
+    // the server and this page must come from the same build; an older server (e.g. one Claude's MCP started) gets flagged
+    fetch("/api/health").then((r) => r.json()).then((h: { build: string }) => {
+      if (h.build !== "dev" && h.build !== __BUILD_ID__) toast.warning("Studio's server is older than this page", { description: "Close Studio and run Start Studio again. It will replace the old server.", duration: 20000 });
+    }).catch(() => {});
     return () => { gone = true; clearTimeout(retry); es?.close(); };
   }, [qc]);
 }

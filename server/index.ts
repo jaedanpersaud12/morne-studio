@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamText } from "hono/streaming";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { BOOK, PORT, tree, readText, writeText, loadEntities, versions, snapshot, buildManuscript } from "./book";
 import { search, backlinks, rebuild, presence } from "./index-db";
 import { fingerprint } from "./stats";
@@ -211,6 +211,17 @@ api.post("/git/push", async (c) => c.json(await git.push()));
 api.post("/git/resolve", async (c) => c.json(await git.resolve((await c.req.json<{ resolutions: Record<string, string> }>()).resolutions)));
 api.get("/git/log", async (c) => c.json(await git.fileLog(c.req.query("path") ?? "")));
 api.get("/git/show", async (c) => c.json({ content: await git.showAt(c.req.query("hash") ?? "HEAD", c.req.query("path") ?? "") }));
+
+// ---- lifecycle: a newer launch can retire an older server (e.g. one Claude's MCP started in the background) ----
+const SERVER_BUILD = (() => { try { return readFileSync(path.resolve(import.meta.dir, "..", "dist", "build-id.txt"), "utf8").trim(); } catch { return "dev"; } })();
+export const lifecycle: { stop: () => void } = { stop: () => process.exit(0) };
+api.get("/health", (c) => c.json({ ok: true, build: SERVER_BUILD, pid: process.pid }));
+api.post("/admin/shutdown", (c) => {
+  const host = (c.req.header("host") ?? "").split(":")[0];
+  if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) return c.text("local only", 403);
+  setTimeout(() => lifecycle.stop(), 150);
+  return c.json({ ok: true });
+});
 
 app.route("/api", api);
 

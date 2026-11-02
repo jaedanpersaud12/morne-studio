@@ -17,14 +17,19 @@ export function useBrowserVoices() {
 
 export const findVoice = (uri: string | undefined) => (uri && typeof speechSynthesis !== "undefined" ? speechSynthesis.getVoices().find((v) => v.voiceURI === uri) : undefined);
 
+const keep = new Set<SpeechSynthesisUtterance>();
+
 /** Speak one paragraph; resolves when it finishes (or is cancelled). */
 export function speak(text: string, voiceURI: string | undefined, rate: number): Promise<void> {
   return new Promise((res) => {
     const u = new SpeechSynthesisUtterance(text.replace(/[*_#>`]/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1"));
     const v = findVoice(voiceURI);
     if (v) { u.voice = v; u.lang = v.lang; }
-    u.rate = rate;
+    u.rate = Number.isFinite(rate) && rate > 0 ? rate : 1;
     u.onend = () => res(); u.onerror = () => res();
-    speechSynthesis.speak(u);
+    keep.add(u); // Chrome drops utterances that nothing references, and then never fires onend
+    const done = () => keep.delete(u);
+    u.addEventListener("end", done); u.addEventListener("error", done);
+    try { speechSynthesis.resume(); speechSynthesis.speak(u); } catch { res(); }
   });
 }
