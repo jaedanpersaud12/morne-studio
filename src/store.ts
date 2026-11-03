@@ -33,7 +33,13 @@ type S = {
   agent: AgentActivity[]; agentFollow: boolean; agentMark: AgentMark | null; agentUndone: string[];
 };
 
-const saved = (() => { try { return JSON.parse(localStorage.getItem("mbs") ?? "{}"); } catch { return {}; } })();
+const saved = (() => { try { const v = JSON.parse(localStorage.getItem("mbs") ?? "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } })();
+// Old builds stored view and panel names that no longer exist; anything unknown falls back to the default instead of rendering an empty screen.
+const VIEWS: View[] = ["write", "board", "timeline", "knowledge", "ledger", "map", "wiki"];
+const PANELS: Panel[] = ["stats", "cast", "claude", "notes", "history"];
+if (!VIEWS.includes(saved.view)) delete saved.view;
+if (saved.openPath != null && typeof saved.openPath !== "string") delete saved.openPath;
+if (saved.modes != null && typeof saved.modes !== "object") delete saved.modes;
 const persist = (patch: Record<string, unknown>) => { try { Object.assign(saved, patch); localStorage.setItem("mbs", JSON.stringify(saved)); } catch {} };
 
 export const useStore = create<S>((set, get) => ({
@@ -43,7 +49,7 @@ export const useStore = create<S>((set, get) => ({
   setOpenPath: (p) => { set({ openPath: p, jumpLine: null, selection: null, view: "write" }); persist({ openPath: p, view: "write" }); },
   dirty: false, setDirty: (dirty) => set({ dirty }),
   entityId: null, setEntity: (id) => set({ entityId: id, panel: id ? "cast" : get().panel, view: "write" }),
-  panel: (["entity", "backlinks"].includes(saved.panel) ? "cast" : ["versions", "git"].includes(saved.panel) ? "history" : saved.panel) ?? "cast", setPanel: (panel) => { set({ panel }); persist({ panel }); },
+  panel: ["entity", "backlinks"].includes(saved.panel) ? "cast" : ["versions", "git"].includes(saved.panel) ? "history" : PANELS.includes(saved.panel) ? saved.panel : "cast", setPanel: (panel) => { set({ panel }); persist({ panel }); },
   jumpLine: null, setJumpLine: (jumpLine) => set({ jumpLine }),
   focus: false, toggleFocus: () => set({ focus: !get().focus }),
   toast: null,
